@@ -20,7 +20,7 @@
 | 术语 | 英文 | 定义 |
 |---|---|---|
 | 原生 MCP | NativeMcp | Hub 在自己的 JVM 中重新实现的外部服务。直接调用第三方 HTTP API，不使用外部已有的 MCP Server 实现 |
-| 代理 MCP | ProxyMcp | Hub 作为 MCP Client 透明代理已有官方公有云 MCP Server。纯转发，可附加 before/after 拦截器 |
+| 代理 MCP | ProxyMcp | Hub 作为 MCP Client 透明代理已有官方公有云 MCP Server。仅支持远程 HTTP（Streamable HTTP）传输，不用 stdio 子进程；认证字段经 Spring Boot 配置注入固定 header；暴露的工具列表由提供者代码固定（见 ADR-0007） |
 | 拦截器 | ProxyInterceptor | ProxyMcp 的扩展点。提供 `onBefore` 和 `onAfter` 默认方法，用于日志记录、速率限制等增强功能。（当前预留，不实现） |
 
 ### 部署范围
@@ -49,6 +49,7 @@
 - `docs/adr/0004-spring-modulith-verification.md` — 使用 Spring Modulith 验证模块结构
 - `docs/adr/0005-configuration-strategy.md` — 配置归入 application.yml + application-local.yml（敏感信息）
 - `docs/adr/0006-jpms-blocked-upstream.md` — JPMS 暂缓：上游 MCP SDK 非法模块名（issue #3）
+- `docs/adr/0007-proxy-http-only-config-driven.md` — Proxy 转发：仅远程 HTTP、配置驱动认证、工具列表由提供者固定
 
 ---
 
