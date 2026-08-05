@@ -2,6 +2,14 @@
 
 本仓库的 issues 与 PRD 以 GitHub issues 形式存在。所有操作使用 `gh` CLI。
 
+## 议题命名格式
+
+- 格式:`<type>: <简述>`
+- 类型前缀:`feat`(新功能)、`bug`(缺陷修复)、`refactor`(重构)、`docs`(文档)、`chore`(杂项/构建)、`test`(测试)
+- 简述:简体中文,一句话说清该议题交付的行为,控制在 50 字以内
+- 示例:`feat: 支持按需注册工具`、`bug: 修复 mcp 端点超时`、`refactor: 重构 Space 领域逻辑`
+- 适用范围:此格式自里程碑 1 之后生效;历史议题 #1 保留原名不修改。
+
 ## 约定
 
 - **创建 issue**:`gh issue create --title "..." --body "..."`。多行正文用 heredoc。

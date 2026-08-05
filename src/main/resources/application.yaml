@@ -1,17 +1,19 @@
 spring:
   application:
     name: xyz-mcp-hub
+  profiles:
+    active: local
   autoconfigure:
     exclude:
       - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
-  ai:
-    mcp:
-      server:
-        name: utils
-        version: 1.0.0
-        protocol: STATELESS
-        streamable-http:
-          mcp-endpoint: /mcp/server/utils
+      - org.springframework.ai.mcp.server.common.autoconfigure.McpServerAutoConfiguration
+      - org.springframework.ai.mcp.server.common.autoconfigure.McpServerStatelessAutoConfiguration
+      - org.springframework.ai.mcp.server.common.autoconfigure.annotations.McpServerAnnotationScannerAutoConfiguration
+      - org.springframework.ai.mcp.server.common.autoconfigure.annotations.McpServerSpecificationFactoryAutoConfiguration
+      - org.springframework.ai.mcp.server.common.autoconfigure.annotations.StatelessServerSpecificationFactoryAutoConfiguration
+      - org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration
+      - org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerSseWebMvcAutoConfiguration
+      - org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStatelessWebMvcAutoConfiguration
 vaadin:
   launch-browser: true
   url-mapping: /ui/*
