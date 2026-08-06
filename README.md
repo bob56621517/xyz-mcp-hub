@@ -62,6 +62,18 @@ xyz-mcp-hub/
 java -jar target/xyz-mcp-hub-*.jar
 ```
 
+## Playwright 浏览器自动化端点
+
+`/mcp/server/playwright` 提供原生浏览器自动化（导航、可访问性快照、点击/输入、截图、网络与控制台监听等，按官方 `@playwright/mcp` 工具集实现），无外部 API key。
+
+前置：首次使用前安装 chromium 二进制：
+
+```bash
+./mvnw exec:java -Dvaadin.skip=true -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install chromium"
+```
+
+浏览器会话懒启动，首次工具调用时拉起无头 chromium；无头与否可通过 `playwright.headless` 属性配置（默认 true）。
+
 ## 第一个里程碑
 
 - [x] Spring Boot 项目骨架
