@@ -17,3 +17,6 @@ spring:
 vaadin:
   launch-browser: true
   url-mapping: /ui/*
+
+bocha:
+  base-url: https://api.bochaai.com

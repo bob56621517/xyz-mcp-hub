@@ -69,7 +69,7 @@ io.xyz.xyz_mcp_hub                          ← 根包
 │   ├── mcp.internal.nativemcp              ← NativeMcp 基类
 │   │   ├── mcp.internal.nativemcp.host                 ← HostMcp（预留）
 │   │   ├── mcp.internal.nativemcp.network.utils        ← UtilsMcpProvider + UtilsTools
-│   │   └── mcp.internal.nativemcp.network.bocha        ← BochaMcpProvider（桩，空工具）
+│   │   └── mcp.internal.nativemcp.network.bocha        ← BochaMcpProvider + BochaTools（博查搜索）
 │   └── mcp.internal.proxy                  ← ProxyMcpProvider + ProxyInterceptor（预留）
 │
 ├── ui                                      ← 模块 2（Vaadin 管理界面）
