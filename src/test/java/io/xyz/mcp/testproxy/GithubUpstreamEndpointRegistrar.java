@@ -19,8 +19,9 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 集成测试专用：GitHub 风格上游 MCP Server 的端点注册器，在独立 context 中暴露
- * {@code /mcp/server/upstream} 端点，提供只读工具（get_me / search_issues）与写工具
- * （create_issue）混合列表，供 GitHub 端点测试验证全量透传与只读清单过滤。
+ * {@code /mcp/server/upstream} 端点，提供只读工具（get_me / search_issues）、写工具
+ * （create_issue）与错误工具（fail）混合列表，供 GitHub 端点测试验证全量透传、只读清单
+ * 过滤与 isError 透传。
  */
 @Configuration(proxyBeanMethods = false)
 public class GithubUpstreamEndpointRegistrar {
@@ -38,7 +39,7 @@ public class GithubUpstreamEndpointRegistrar {
 	McpSyncServer githubUpstreamServer(WebMvcStreamableServerTransportProvider transport) {
 		return McpServer.sync(transport)
 			.serverInfo(new McpSchema.Implementation("github-upstream", "1.0.0"))
-			.tools(getMeTool(), searchIssuesTool(), createIssueTool())
+			.tools(getMeTool(), searchIssuesTool(), createIssueTool(), failTool())
 			.capabilities(McpSchema.ServerCapabilities.builder().tools(true).build())
 			.immediateExecution(true)
 			.build();
@@ -94,6 +95,19 @@ public class GithubUpstreamEndpointRegistrar {
 		return new McpServerFeatures.SyncToolSpecification(tool, (exchange, request) ->
 			McpSchema.CallToolResult.builder()
 				.content(List.of(new McpSchema.TextContent("created issue #123")))
+				.build());
+	}
+
+	private McpServerFeatures.SyncToolSpecification failTool() {
+		var tool = McpSchema.Tool.builder()
+			.name("fail")
+			.description("总是返回错误的模拟工具")
+			.inputSchema(McpSchema.JsonSchema.builder().type("object").additionalProperties(false).build())
+			.build();
+		return new McpServerFeatures.SyncToolSpecification(tool, (exchange, request) ->
+			McpSchema.CallToolResult.builder()
+				.content(List.of(new McpSchema.TextContent("上游模拟失败")))
+				.isError(true)
 				.build());
 	}
 

@@ -26,9 +26,12 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * GitHub 代理端点集成测试：内嵌 GitHub 风格上游 MCP Server（只读 get_me / search_issues +
- * 写 create_issue），经 Hub 的 {@code /mcp/server/github-full} 与 {@code /mcp/server/github-readonly}
- * 端点验证全量透传、只读清单过滤、搜索工具调用、Bearer 认证注入与 isEnabled 门控。
+ * GitHub 代理端点集成测试（mock 联通，见 {@code docs/testing/mcp-service-test-guide.md}）：
+ * 内嵌 GitHub 风格上游 MCP Server（只读 get_me / search_issues + 写 create_issue + 错误 fail），
+ * 经 Hub 的 {@code /mcp/server/github-full} 与 {@code /mcp/server/github-readonly} 端点验证
+ * listTools 透传、isError 透传、只读清单过滤、搜索/写工具调用、Bearer 认证注入与 isEnabled 门控。
+ *
+ * <p>无外部依赖：内嵌上游模拟，不触网、不需真实 token。</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = XyzMcpHubApplication.class)
 class McpGithubEndpointTest {
@@ -102,13 +105,22 @@ class McpGithubEndpointTest {
 		client = connect("/mcp/server/github-full");
 		var tools = client.listTools().tools();
 		assertThat(tools).extracting(McpSchema.Tool::name)
-			.containsExactlyInAnyOrder("get_me", "search_issues", "create_issue");
+			.containsExactlyInAnyOrder("get_me", "search_issues", "create_issue", "fail");
 	}
 
 	@Test
 	void fullProviderCanCallWriteTool() {
 		client = connect("/mcp/server/github-full");
 		assertThat(callText(client, "create_issue", Map.of("title", "bug"))).isEqualTo("created issue #123");
+	}
+
+	@Test
+	void fullProviderPropagatesUpstreamError() {
+		client = connect("/mcp/server/github-full");
+		var result = client.callTool(McpSchema.CallToolRequest.builder("fail").arguments(Map.of()).build());
+		assertThat(result.isError()).isTrue();
+		var text = (McpSchema.TextContent) result.content().get(0);
+		assertThat(text.text()).isEqualTo("上游模拟失败");
 	}
 
 	@Test
