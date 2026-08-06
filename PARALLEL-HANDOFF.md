@@ -49,6 +49,7 @@
 ## 公共约定
 
 - 测试命令：`./mvnw test -Dvaadin.skip=true`（跳过 Vaadin 前端构建，快）
+- **测试编写遵循 `docs/testing/mcp-service-test-guide.md`**（NativeMcp 逐工具真实测试 / ProxyMcp mock 联通 + 手工冒烟；测试类 Javadoc 声明 `@requires-*` 外部依赖）
 - 启动时 `HubMcpRegistrar` 对每个端点输出 成功/跳过/失败 日志，可据此调试
 - 缺必要配置的端点自动不注册（`isEnabled()`），不会拖垮应用
-- 完成：各自提交 → `git push` → 合并回 main → close issue
+- 完成：各自提交 → `git push` → 合并回 main → close issue；手工冒烟结果作为评论加载议题
