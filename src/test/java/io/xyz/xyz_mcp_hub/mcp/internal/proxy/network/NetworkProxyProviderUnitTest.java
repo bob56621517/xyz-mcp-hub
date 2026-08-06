@@ -10,13 +10,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 公共 Proxy 提供者单元测试：守护默认上游 URL 与端点元数据（PARALLEL-HANDOFF.md）。
  * 不加载 Spring 上下文，构造注入任意 URL 验证 getter 行为。
+ *
+ * <p>无外部依赖：纯内存单元测试，不发起网络请求。</p>
  */
 class NetworkProxyProviderUnitTest {
 
 	@Test
 	void defaultUpstreamUrlsMatchHandoff() {
 		assertThat(Context7McpProvider.DEFAULT_UPSTREAM_URL).isEqualTo("https://mcp.context7.com/mcp");
-		assertThat(GrepAppMcpProvider.DEFAULT_UPSTREAM_URL).isEqualTo("https://mcp.grep.app");
+		// grep.app 真实端点位于根路径，须带尾斜杠（/mcp 返回 Invalid MCP endpoint）
+		assertThat(GrepAppMcpProvider.DEFAULT_UPSTREAM_URL).isEqualTo("https://mcp.grep.app/");
 		assertThat(WikidataMcpProvider.DEFAULT_UPSTREAM_URL).isEqualTo("https://wd-mcp.wmcloud.org/mcp");
 	}
 

@@ -35,6 +35,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  *
  * <p>三个提供者均为免认证的公共 Proxy（ADR-0007 一般免认证场景），测试经
  * {@code DynamicPropertySource} 把上游 URL 指向内嵌上游，验证配置注入而非直连生产。</p>
+ *
+ * <p>无外部依赖：内嵌上游 MCP Server（{@code UpstreamMcpApplication}），无需真实网络或 token。</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = XyzMcpHubApplication.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
