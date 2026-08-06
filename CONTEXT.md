@@ -47,7 +47,7 @@
 - `docs/adr/0002-single-module-jpms.md` — 单 Maven 模块 + JPMS 模块化
 - `docs/adr/0003-native-vs-proxy-mcp.md` — NativeMcp 为主，ProxyMcp 仅用于公有云 MCP
 - `docs/adr/0004-spring-modulith-verification.md` — 使用 Spring Modulith 验证模块结构
-- `docs/adr/0005-configuration-strategy.md` — 配置归入 application.yml + application-local.yml（敏感信息）
+- `docs/adr/0005-configuration-strategy.md` — 配置归入 application.yml + 敏感值环境变量分层注入（缺配置不注册）
 - `docs/adr/0006-jpms-blocked-upstream.md` — JPMS 暂缓：上游 MCP SDK 非法模块名（issue #3）
 - `docs/adr/0007-proxy-http-only-config-driven.md` — Proxy 转发：仅远程 HTTP、配置驱动认证、工具列表由提供者固定
 

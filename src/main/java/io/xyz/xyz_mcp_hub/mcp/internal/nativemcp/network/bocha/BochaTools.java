@@ -99,43 +99,75 @@ public class BochaTools {
 			return "博查搜索失败（code=" + code + "）：" + msg;
 		}
 
-		JsonNode data = root.path("data");
 		StringBuilder sb = new StringBuilder();
 		if ("ai-search".equals(endpoint)) {
-			String aiSummary = data.path("aiSummary").asText("");
-			if (!aiSummary.isBlank()) {
-				sb.append("AI 总结：").append(aiSummary).append("\n\n");
-			}
+			appendAiSearch(sb, root);
 		}
-
-		JsonNode pages = data.path("webPages").path("value");
-		if (pages.isArray() && !pages.isEmpty()) {
-			int i = 1;
-			for (JsonNode page : pages) {
-				String name = page.path("name").asText("");
-				String url = page.path("url").asText("");
-				String siteName = page.path("siteName").asText("");
-				String snippet = page.path("snippet").asText("");
-
-				sb.append(i++).append(". ");
-				if (!name.isBlank()) {
-					sb.append(name);
-				}
-				if (!url.isBlank()) {
-					sb.append("（").append(url).append("）");
-				}
-				if (!siteName.isBlank()) {
-					sb.append(" [").append(siteName).append("]");
-				}
-				sb.append('\n');
-				if (!snippet.isBlank()) {
-					sb.append("   ").append(snippet).append('\n');
-				}
-			}
-		} else {
+		else {
+			appendPages(sb, root.path("data").path("webPages").path("value"));
+		}
+		if (sb.isEmpty()) {
 			sb.append("未找到相关结果。");
 		}
 		return sb.toString().stripTrailing();
+	}
+
+	/**
+	 * ai-search 响应结构：顶层 {@code messages[]}。{@code type=answer} 的消息 content 为纯文本
+	 * AI 总结；{@code type=source, content_type=webpage} 的消息 content 为内嵌 JSON 字符串，
+	 * 含 {@code value[]} 网页列表（字段与 web-search 的 webPages.value 一致）。
+	 */
+	private void appendAiSearch(StringBuilder sb, JsonNode root) {
+		for (JsonNode message : root.path("messages")) {
+			String type = message.path("type").asText("");
+			String content = message.path("content").asText("");
+			if ("answer".equals(type) && !content.isBlank()) {
+				sb.append("AI 总结：").append(content).append("\n\n");
+				break;
+			}
+		}
+		for (JsonNode message : root.path("messages")) {
+			String type = message.path("type").asText("");
+			String contentType = message.path("content_type").asText("");
+			String content = message.path("content").asText("");
+			if ("source".equals(type) && "webpage".equals(contentType) && !content.isBlank()) {
+				try {
+					appendPages(sb, jsonMapper.readTree(content).path("value"));
+				}
+				catch (JacksonException ignored) {
+					// 单条 source 解析失败时忽略，继续后续消息
+				}
+				break;
+			}
+		}
+	}
+
+	private void appendPages(StringBuilder sb, JsonNode pages) {
+		if (!pages.isArray() || pages.isEmpty()) {
+			return;
+		}
+		int i = 1;
+		for (JsonNode page : pages) {
+			String name = page.path("name").asText("");
+			String url = page.path("url").asText("");
+			String siteName = page.path("siteName").asText("");
+			String snippet = page.path("snippet").asText("");
+
+			sb.append(i++).append(". ");
+			if (!name.isBlank()) {
+				sb.append(name);
+			}
+			if (!url.isBlank()) {
+				sb.append("（").append(url).append("）");
+			}
+			if (!siteName.isBlank()) {
+				sb.append(" [").append(siteName).append("]");
+			}
+			sb.append('\n');
+			if (!snippet.isBlank()) {
+				sb.append("   ").append(snippet).append('\n');
+			}
+		}
 	}
 
 }

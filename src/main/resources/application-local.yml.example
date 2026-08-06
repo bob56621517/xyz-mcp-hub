@@ -1,0 +1,11 @@
+# application-local.yml.example — 本地敏感配置模板
+#
+# 复制为 application-local.yml（.gitignore 排除，不入库）后填入真实值；
+# 或将同名环境变量注入。所有 key 均为全大写、下划线分隔（如 BOCHA_API_KEY）。
+# 缺省值导致对应 MCP 端点不注册（见 ADR-0005）。
+
+# 博查搜索 API key（必填才注册 /mcp/server/bocha）
+BOCHA_API_KEY:
+
+# GitHub MCP 认证 token（#5 实现后使用；暂未使用）
+# GITHUB_TOKEN:

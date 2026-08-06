@@ -1,6 +1,6 @@
 # ADR-0007: Proxy 转发基础设施仅远程 HTTP，认证配置驱动，工具列表由提供者固定
 
-Hub 作为 MCP Client 透明代理上游公有云 MCP Server（GitHub、context7、grep.app、Wikidata）时，**只支持远程 HTTP（Streamable HTTP）转发，永不用 stdio 子进程**；上游认证字段一律经 Spring Boot 配置（`application-local.yml`）注入固定 header；不做通用工具过滤机制，每个 ProxyMcp 暴露哪些工具由提供者代码固定。
+Hub 作为 MCP Client 透明代理上游公有云 MCP Server（GitHub、context7、grep.app、Wikidata）时，**只支持远程 HTTP（Streamable HTTP）转发，永不用 stdio 子进程**；上游认证字段一律经 Spring Boot 配置（`${...}` 占位符 + 环境变量 / `application-local.yml`，见 ADR-0005）注入固定 header；不做通用工具过滤机制，每个 ProxyMcp 暴露哪些工具由提供者代码固定。
 
 ## 状态
 
@@ -9,7 +9,7 @@ Hub 作为 MCP Client 透明代理上游公有云 MCP Server（GitHub、context7
 ## 决策
 
 1. **仅远程 HTTP 传输**：Proxy 基础设施只实现远程 HTTP（Streamable HTTP）转发。**永不用 stdio 子进程**（项目铁则）——不接受以 spawn `gh mcp`、npx、docker 等本地进程方式接入上游。
-2. **配置驱动的认证**：上游需要的认证字段（如 Bearer token）全部通过 Spring Boot 配置注入，作为固定 header 字段发送；敏感值进 `application-local.yml`（见 ADR-0005）。
+2. **配置驱动的认证**：上游需要的认证字段（如 Bearer token）全部通过 Spring Boot 配置注入，作为固定 header 字段发送；敏感值经环境变量或 `application-local.yml` 注入（见 ADR-0005，`${...}` 占位符 + `application-local.yml.example` 模板）。
 3. **不做通用工具过滤**：`read-only` 等工具子集需求由提供者代码固定一个定制工具列表，基础设施不实现黑白名单过滤机制。
 4. **本地 HTTP 暴露**：第一版 Hub 是本地运行的、对外以 HTTP 暴露 MCP 端点的聚合服务。
 

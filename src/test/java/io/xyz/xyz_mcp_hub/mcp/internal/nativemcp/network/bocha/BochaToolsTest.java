@@ -38,19 +38,21 @@ class BochaToolsTest {
 	private static final String AI_SEARCH_JSON = """
 		{
 		  "code": 200,
-		  "data": {
-		    "aiSummary": "Spring Boot 是流行的 Java 微服务框架。",
-		    "webPages": {
-		      "value": [
-		        {
-		          "name": "Spring Boot 官网",
-		          "url": "https://spring.io/projects/spring-boot",
-		          "snippet": "快速构建生产级 Spring 应用。",
-		          "siteName": "Spring"
-		        }
-		      ]
+		  "log_id": "test-log",
+		  "messages": [
+		    {
+		      "role": "assistant",
+		      "type": "answer",
+		      "content_type": "text",
+		      "content": "Spring Boot 是流行的 Java 微服务框架。"
+		    },
+		    {
+		      "role": "assistant",
+		      "type": "source",
+		      "content_type": "webpage",
+		      "content": "{\\"webSearchUrl\\":\\"https://bochaai.com/search?q=spring boot\\",\\"value\\":[{\\"name\\":\\"Spring Boot 官网\\",\\"url\\":\\"https://spring.io/projects/spring-boot\\",\\"snippet\\":\\"快速构建生产级 Spring 应用。\\",\\"siteName\\":\\"Spring\\"}]}"
 		    }
-		  }
+		  ]
 		}
 		""";
 

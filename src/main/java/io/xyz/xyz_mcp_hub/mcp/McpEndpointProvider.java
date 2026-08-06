@@ -39,4 +39,13 @@ public interface McpEndpointProvider {
 		return List.of();
 	}
 
+	/**
+	 * 端点是否注册。默认 {@code true}；子类在自身所需关键配置（如 API key）缺失时返回
+	 * {@code false}，由 {@code HubMcpRegistrar} 跳过注册（见 ADR-0005）。只做配置检查，
+	 * 不发起网络请求——proxy 上游连接失败由注册器在 connect 时兜底。
+	 */
+	default boolean isEnabled() {
+		return true;
+	}
+
 }

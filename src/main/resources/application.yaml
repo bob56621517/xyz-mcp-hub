@@ -15,8 +15,10 @@ spring:
       - org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerSseWebMvcAutoConfiguration
       - org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStatelessWebMvcAutoConfiguration
 vaadin:
-  launch-browser: true
+  launch-browser: false
   url-mapping: /ui/*
 
 bocha:
   base-url: https://api.bochaai.com
+  # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005）；缺省为空，服务不注册
+  api-key: ${BOCHA_API_KEY:}

@@ -36,7 +36,10 @@ class McpBochaEndpointTest {
 		""".strip();
 
 	private static final String AI_SEARCH_RESPONSE = """
-		{"code":200,"data":{"aiSummary":"Spring Boot 是流行的 Java 微服务框架。","webPages":{"value":[{"name":"Spring Boot 官网","url":"https://spring.io/projects/spring-boot","snippet":"快速构建生产级 Spring 应用。","siteName":"Spring"}]}}}
+		{"code":200,"log_id":"test-log","messages":[
+			{"role":"assistant","type":"answer","content_type":"text","content":"Spring Boot 是流行的 Java 微服务框架。"},
+			{"role":"assistant","type":"source","content_type":"webpage","content":"{\\"webSearchUrl\\":\\"https://bochaai.com/search?q=spring boot\\",\\"value\\":[{\\"name\\":\\"Spring Boot 官网\\",\\"url\\":\\"https://spring.io/projects/spring-boot\\",\\"snippet\\":\\"快速构建生产级 Spring 应用。\\",\\"siteName\\":\\"Spring\\"}]}"}
+		]}
 		""".strip();
 
 	private static HttpServer mockApi;
@@ -53,6 +56,8 @@ class McpBochaEndpointTest {
 		mockApi.createContext("/v1/ai-search", exchange -> respond(exchange, AI_SEARCH_RESPONSE));
 		mockApi.start();
 		registry.add("bocha.base-url", () -> "http://localhost:" + mockApi.getAddress().getPort());
+		// 端点按 api-key 非空才注册（ADR-0005），测试注入假 key 使 bocha 端点生效
+		registry.add("bocha.api-key", () -> "test-key");
 	}
 
 	private static void respond(HttpExchange exchange, String json) throws IOException {

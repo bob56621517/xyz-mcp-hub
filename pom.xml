@@ -31,6 +31,7 @@
 		<spring-ai.version>2.0.0</spring-ai.version>
 		<vaadin.version>25.2.5</vaadin.version>
 		<spring-modulith.version>2.1.0</spring-modulith.version>
+		<playwright.version>1.62.0</playwright.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -53,6 +54,11 @@
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.microsoft.playwright</groupId>
+			<artifactId>playwright</artifactId>
+			<version>${playwright.version}</version>
 		</dependency>
 
 
