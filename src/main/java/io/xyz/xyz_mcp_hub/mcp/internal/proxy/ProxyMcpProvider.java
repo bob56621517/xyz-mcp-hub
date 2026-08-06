@@ -1,20 +1,82 @@
 package io.xyz.xyz_mcp_hub.mcp.internal.proxy;
 
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.util.List;
+import java.util.Map;
+
+import io.modelcontextprotocol.client.McpClient;
+import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
+import io.modelcontextprotocol.spec.McpSchema;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
 
 /**
- * 代理 MCP 服务基类 —— 预留。
+ * 代理 MCP 服务基类：Hub 作为 MCP Client 透明代理远程公有云 MCP Server。
  *
- * <p>代理公有云 MCP 的端点提供者应继承此类，作为 MCP Client 连接外部官方 MCP Server 并透明转发
- * （转发路径统一经过 {@link ProxyInterceptor} 拦截器链）。本期无具体代理目标，本类仅为类型层级预留，
- * 不注册任何端点；具体代理实现待接入具体公有云 MCP 服务时落地。</p>
+ * <p>仅支持远程 HTTP（Streamable HTTP）传输（见 ADR-0007），永不用 stdio 子进程。
+ * 子类需提供上游完整端点 URL 与可选认证 header（敏感值经 Spring 配置注入）。Hub 启动时
+ * {@code HubMcpRegistrar} 调用 {@link #connect()} 连接上游，拉取工具列表原样透传，收到
+ * callTool 时透明转发；关闭时经 {@link McpSyncClient#closeGracefully()} 释放。</p>
  */
 public abstract class ProxyMcpProvider implements McpEndpointProvider {
 
 	@Override
 	public final Scope getScope() {
 		return Scope.NETWORK;
+	}
+
+	/**
+	 * 上游远程 MCP Server 的完整端点 URL（Streamable HTTP），如
+	 * {@code https://api.example.com/mcp/server/foo}。
+	 */
+	public abstract String getUpstreamUrl();
+
+	/**
+	 * 可选认证 header 字段，随每个上游请求发送。默认无认证；敏感值（如 token）经
+	 * Spring 配置注入（见 ADR-0005，进 application-local.yml）。
+	 */
+	public Map<String, String> getAuthHeaders() {
+		return Map.of();
+	}
+
+	/**
+	 * 工具子集钩子：返回需透传的工具名；空列表表示全量透传上游工具。需要工具子集的
+	 * 子类在此代码里固定列表（ADR-0007 决策 3：不做通用过滤机制）。
+	 */
+	public List<String> getToolNames() {
+		return List.of();
+	}
+
+	/**
+	 * 从上游工具列表中按 {@link #getToolNames()} 选出待透传的工具；空子集返回全部。
+	 */
+	public List<McpSchema.Tool> selectTools(List<McpSchema.Tool> upstreamTools) {
+		List<String> subset = getToolNames();
+		if (subset.isEmpty()) {
+			return upstreamTools;
+		}
+		return upstreamTools.stream().filter(tool -> subset.contains(tool.name())).toList();
+	}
+
+	/**
+	 * 建立到上游的同步 MCP Client 连接（含 initialize 握手）。调用方负责关闭。
+	 */
+	public McpSyncClient connect() {
+		URI uri = URI.create(getUpstreamUrl());
+		String baseUri = uri.getScheme() + "://" + uri.getRawAuthority();
+		String endpoint = (uri.getPath() == null || uri.getPath().isEmpty()) ? "/mcp" : uri.getPath();
+		var builder = HttpClientStreamableHttpTransport.builder(baseUri).endpoint(endpoint);
+		Map<String, String> authHeaders = getAuthHeaders();
+		if (!authHeaders.isEmpty()) {
+			var requestBuilder = HttpRequest.newBuilder();
+			authHeaders.forEach(requestBuilder::header);
+			builder.requestBuilder(requestBuilder);
+		}
+		var client = McpClient.sync(builder.build()).build();
+		client.initialize();
+		return client;
 	}
 
 }

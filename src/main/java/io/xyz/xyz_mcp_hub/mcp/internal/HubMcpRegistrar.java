@@ -3,11 +3,14 @@ package io.xyz.xyz_mcp_hub.mcp.internal;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
+import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
+import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ProxyMcpProvider;
 import org.springframework.ai.mcp.McpToolUtils;
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStreamableServerTransportProvider;
 import org.springframework.beans.factory.DisposableBean;
@@ -38,6 +41,9 @@ public class HubMcpRegistrar implements DisposableBean {
 	/** 已创建的服务，用于关闭时优雅释放资源。 */
 	private final List<McpSyncServer> servers = new ArrayList<>();
 
+	/** 已建立的到上游的代理连接，关闭时优雅释放。 */
+	private final List<McpSyncClient> upstreamClients = new ArrayList<>();
+
 	public HubMcpRegistrar(List<McpEndpointProvider> providers,
 			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper) {
 		this.providers = providers;
@@ -56,12 +62,29 @@ public class HubMcpRegistrar implements DisposableBean {
 			.build();
 		var server = McpServer.sync(transport)
 			.serverInfo(new McpSchema.Implementation(provider.getName(), SERVER_VERSION))
-			.tools(McpToolUtils.toSyncToolSpecification(provider.getTools()))
 			.capabilities(McpSchema.ServerCapabilities.builder().tools(true).build())
-			.immediateExecution(true)
-			.build();
-		servers.add(server);
+			.immediateExecution(true);
+		if (provider instanceof ProxyMcpProvider proxy) {
+			server.tools(proxyTools(proxy));
+		}
+		else {
+			server.tools(McpToolUtils.toSyncToolSpecification(provider.getTools()));
+		}
+		servers.add(server.build());
 		return transport;
+	}
+
+	/**
+	 * 代理端点的工具：连接上游拉取工具列表（可选按提供者固定子集透传），callTool 时透明
+	 * 转发、响应原样返回（含 isError）。连接由本注册器持有，{@link #destroy()} 时优雅释放。
+	 */
+	private List<McpServerFeatures.SyncToolSpecification> proxyTools(ProxyMcpProvider proxy) {
+		McpSyncClient upstream = proxy.connect();
+		upstreamClients.add(upstream);
+		return proxy.selectTools(upstream.listTools().tools()).stream()
+			.map(tool -> new McpServerFeatures.SyncToolSpecification(tool,
+					(exchange, request) -> upstream.callTool(request)))
+			.toList();
 	}
 
 	@Bean
@@ -75,6 +98,10 @@ public class HubMcpRegistrar implements DisposableBean {
 	@Override
 	public void destroy() {
 		servers.forEach(McpSyncServer::closeGracefully);
+		upstreamClients.forEach(McpSyncClient::closeGracefully);
+		// 清空使 destroy 幂等：资源已释放，重复调用为空操作
+		servers.clear();
+		upstreamClients.clear();
 	}
 
 }

@@ -31,7 +31,12 @@ public interface McpEndpointProvider {
 
 	/**
 	 * 该端点暴露的工具列表。可通过 {@code MethodToolCallbackProvider} 从 {@code @Tool} 注解方法构建。
+	 *
+	 * <p>{@code NativeMcp} 子类必须实现；{@code ProxyMcpProvider} 不实现——其工具由
+	 * {@code HubMcpRegistrar} 启动时从上游 {@code listTools} 透传（可选按提供者固定子集）。</p>
 	 */
-	List<ToolCallback> getTools();
+	default List<ToolCallback> getTools() {
+		return List.of();
+	}
 
 }
