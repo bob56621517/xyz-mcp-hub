@@ -3,7 +3,9 @@ package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 
 import com.microsoft.playwright.Playwright;
 import org.springframework.beans.factory.DisposableBean;
@@ -43,32 +45,53 @@ public class SharedChromium implements DisposableBean {
 		if (cdpEndpoint != null) {
 			return;
 		}
+		Path dataDir = null;
+		Process started = null;
 		try {
 			String executable;
 			try (Playwright pw = Playwright.create()) {
 				executable = pw.chromium().executablePath();
 			}
-			Path dataDir = Files.createTempDirectory("xyz-mcp-hub-chromium");
-			ProcessBuilder builder = new ProcessBuilder(executable,
-					"--headless=new",
-					"--remote-debugging-port=0",
-					"--remote-allow-origins=*",
-					"--disable-back-forward-cache",
-					"--user-data-dir=" + dataDir,
-					"--no-first-run",
-					"--no-default-browser-check",
-					"--disable-gpu",
-					"about:blank");
+			dataDir = Files.createTempDirectory("xyz-mcp-hub-chromium");
+			List<String> command = new ArrayList<>();
+			command.add(executable);
+			if (headless) {
+				command.add("--headless=new");
+			}
+			command.add("--remote-debugging-port=0");
+			command.add("--remote-allow-origins=*");
+			command.add("--disable-back-forward-cache");
+			command.add("--user-data-dir=" + dataDir);
+			command.add("--no-first-run");
+			command.add("--no-default-browser-check");
+			command.add("--disable-gpu");
+			command.add("about:blank");
+			ProcessBuilder builder = new ProcessBuilder(command);
 			builder.redirectErrorStream(true);
 			builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-			Process started = builder.start();
+			started = builder.start();
 			int port = waitForCdpPort(dataDir);
 			this.process = started;
 			this.userDataDir = dataDir;
 			this.cdpEndpoint = "http://127.0.0.1:" + port;
 		}
 		catch (IOException e) {
+			cleanup(started, dataDir);
 			throw new IllegalStateException("启动共享 chromium 失败", e);
+		}
+		catch (RuntimeException e) {
+			// 端口未就绪等启动失败：销毁已拉起的进程并清理临时目录
+			cleanup(started, dataDir);
+			throw e;
+		}
+	}
+
+	private static void cleanup(Process process, Path dataDir) {
+		if (process != null) {
+			process.destroyForcibly();
+		}
+		if (dataDir != null) {
+			deleteDir(dataDir);
 		}
 	}
 
@@ -125,19 +148,23 @@ public class SharedChromium implements DisposableBean {
 		}
 		Path dir = userDataDir;
 		if (dir != null) {
-			try (var stream = Files.walk(dir)) {
-				stream.sorted(Comparator.reverseOrder()).forEach(path -> {
-					try {
-						Files.deleteIfExists(path);
-					}
-					catch (IOException ignored) {
-						// 个别文件被进程占用时忽略，临时目录残留无碍
-					}
-				});
-			}
-			catch (IOException ignored) {
-				// 目录不存在时忽略
-			}
+			deleteDir(dir);
+		}
+	}
+
+	private static void deleteDir(Path dir) {
+		try (var stream = Files.walk(dir)) {
+			stream.sorted(Comparator.reverseOrder()).forEach(path -> {
+				try {
+					Files.deleteIfExists(path);
+				}
+				catch (IOException ignored) {
+					// 个别文件被进程占用时忽略，临时目录残留无碍
+				}
+			});
+		}
+		catch (IOException ignored) {
+			// 目录不存在时忽略
 		}
 	}
 

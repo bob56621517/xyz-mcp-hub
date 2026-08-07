@@ -298,8 +298,13 @@ public class PlaywrightTools {
 			@ToolParam(required = false, description = "web_session(action=create) 返回的会话 ID") String sessionId,
 			@ToolParam(description = "true 自动接受对话框，false 自动取消") boolean accept,
 			@ToolParam(required = false, description = "prompt 对话框的默认输入文本") String promptText) {
-		handle(sessionId).setDialogHandler(accept, promptText);
-		return accept ? "对话框将自动接受。" : "对话框将自动取消。";
+		try {
+			handle(sessionId).setDialogHandler(accept, promptText);
+			return accept ? "对话框将自动接受。" : "对话框将自动取消。";
+		}
+		catch (IllegalArgumentException e) {
+			return "设置对话框处理失败：" + e.getMessage();
+		}
 	}
 
 	@Tool(name = "browser_network_requests", description = "列出页面加载以来的网络请求。sessionId 必填；filter 为 URL 正则；isStatic 为 true 时包含图片/字体/样式等静态资源。")
@@ -333,7 +338,13 @@ public class PlaywrightTools {
 			@ToolParam(required = false, description = "web_session(action=create) 返回的会话 ID") String sessionId,
 			@ToolParam(description = "请求序号，从 1 开始") int index,
 			@ToolParam(required = false, description = "返回部分：request-headers / request-body / response-headers / response-body") String part) {
-		Map<String, Object> r = handle(sessionId).networkRequest(index);
+		Map<String, Object> r;
+		try {
+			r = handle(sessionId).networkRequest(index);
+		}
+		catch (RuntimeException e) {
+			return "查询网络请求失败：" + e.getMessage();
+		}
 		if (r == null) {
 			return "请求序号 " + index + " 不存在。";
 		}

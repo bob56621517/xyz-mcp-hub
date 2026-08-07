@@ -456,6 +456,20 @@ class McpPlaywrightEndpointTest {
 	}
 
 	@Test
+	void closingOneSessionLeavesOthersUsable() {
+		client = connect();
+		String sessionB = createSession(client);
+		navigate();
+		callRaw("browser_navigate", Map.of("sessionId", sessionB, "url", pageUrl));
+		assertThat(webSessionClose(sessionB)).contains("已关闭");
+		// 关闭 B 后，主会话 A 仍可用（会话间生命周期互不影响）
+		assertThat(callTool("browser_evaluate", Map.of("function", "location.pathname"))).contains("/");
+		// 已关闭的会话再操作报错
+		assertThat(callRaw("browser_snapshot", Map.of("sessionId", sessionB)))
+			.contains("不存在或已被关闭");
+	}
+
+	@Test
 	void concurrentSessionsInterleavedOperationsDoNotMix() throws Exception {
 		// 会话 A：主连接；会话 B：独立连接（模拟两个 agent 并发连端点）
 		client = connect();
