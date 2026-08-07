@@ -71,8 +71,7 @@ public class FetchService {
 
 	/** HTML 且前部含 {@code <script>} → 判定为 JS 渲染迹象（auto 引擎据此升级浏览器路径）。 */
 	private static boolean hasScript(Page page) {
-		String mediaType = page.response().mediaType();
-		if (!(isHtml(mediaType) || (mediaType == null && looksLikeHtml(page.body())))) {
+		if (!isHtmlPage(page.response().mediaType(), page.body())) {
 			return false;
 		}
 		String body = page.body();
@@ -86,39 +85,55 @@ public class FetchService {
 
 	/** 逐跳抓取：每跳先 SSRF 校验并锁定，3xx 手动取 Location 重新校验（防 302→内网）。 */
 	private Page fetchPage(String url) {
+		FetchedPage fetched = fetchFollowingRedirects(guard, http, url);
+		return new Page(fetched.uri(), fetched.response());
+	}
+
+	/**
+	 * 快路径与浏览器路径共享的逐跳抓取走步器：每跳 SSRF 校验并锁定 IP 直连，3xx 手动取
+	 * Location 重新校验（防 302→内网）。锁使用本次迭代的局部引用解锁，避免重定向重赋
+	 * {@code target} 后遗留已锁地址（DNS 一直解析到旧 IP）。
+	 */
+	static FetchedPage fetchFollowingRedirects(FetchUrlGuard guard, FetchHttpClient http, String url) {
 		String current = url;
+		ResolvedTarget target = guard.resolveAndCheck(current);
 		for (int hop = 0; hop < MAX_REDIRECTS; hop++) {
-			ResolvedTarget target = guard.resolveAndCheck(current);
-			http.lock(target.host(), target.firstAddress());
+			ResolvedTarget locked = target;
+			http.lock(locked.host(), locked.firstAddress());
 			try {
-				FetchResponse response = http.execute(target.uri());
+				FetchResponse response = http.execute(locked.uri());
 				if (response.isRedirect()) {
 					String location = response.location();
 					if (location == null || location.isBlank()) {
 						throw new FetchException("重定向响应缺少 Location 头：" + current);
 					}
-					current = target.uri().resolve(location).toString();
+					current = locked.uri().resolve(location).toString();
+					target = guard.resolveAndCheck(current);
 					continue;
 				}
 				if (response.status() >= 400) {
-					throw new FetchException("抓取失败（HTTP " + response.status() + "）：" + target.uri());
+					throw new FetchException("抓取失败（HTTP " + response.status() + "）：" + locked.uri());
 				}
-				return new Page(target.uri(), response);
+				return new FetchedPage(locked.uri(), response);
 			}
 			catch (IOException e) {
-				throw new FetchException("抓取失败（" + target.uri() + "）：" + e.getMessage(), e);
+				throw new FetchException("抓取失败（" + locked.uri() + "）：" + e.getMessage(), e);
 			}
 			finally {
-				http.unlock(target.host(), target.firstAddress());
+				http.unlock(locked.host(), locked.firstAddress());
 			}
 		}
 		throw new FetchException("重定向次数超过上限（" + MAX_REDIRECTS + " 跳），已中止。");
 	}
 
+	/** 一次成功抓取的快照：最终 URI（重定向后）+ 响应。 */
+	record FetchedPage(URI uri, FetchResponse response) {
+	}
+
 	/** 文档类型路由：HTML→markdown（或 raw 原文）、PDF→文本、纯文本直出、其余留桩。 */
 	private String extractContent(Page page, boolean raw) {
 		String mediaType = page.response().mediaType();
-		if (isHtml(mediaType) || (mediaType == null && looksLikeHtml(page.body()))) {
+		if (isHtmlPage(mediaType, page.body())) {
 			String body = page.body();
 			return raw ? body : htmlToMarkdown.convert(body);
 		}
@@ -134,6 +149,11 @@ public class FetchService {
 
 	static boolean isHtml(String mediaType) {
 		return mediaType != null && mediaType.contains("html");
+	}
+
+	/** mediaType 声明或 body 形态判定是否为 HTML 文档（快路径与浏览器路径共用）。 */
+	static boolean isHtmlPage(String mediaType, String body) {
+		return isHtml(mediaType) || (mediaType == null && looksLikeHtml(body));
 	}
 
 	static boolean isPdf(String mediaType) {

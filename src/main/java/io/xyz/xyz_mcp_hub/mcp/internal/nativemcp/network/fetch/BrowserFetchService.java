@@ -1,6 +1,5 @@
 package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch;
 
-import java.io.IOException;
 import java.net.URI;
 import java.util.Base64;
 
@@ -10,7 +9,6 @@ import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.FetchHttpClient.F
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.BrowserSessionHandle;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.WebSessionRegistry;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.ResolvedTarget;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.SsrGuardException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -89,43 +87,17 @@ public class BrowserFetchService {
 		return body + "\n\n【页面截图】\ndata:image/png;base64," + result.screenshotBase64();
 	}
 
-	/** 主文档逐跳抓取：每跳 SSRF 校验并锁定 IP 直连，3xx 手动取 Location 重新校验。 */
+	/** 主文档经共享走步器 SSRF 校验 + 锁 IP 直连抓取后，进入渲染/提取。 */
 	private BrowserResult fetchBrowser(String url, boolean raw, boolean screenshot) {
-		String current = url;
-		ResolvedTarget target = mainGuard.resolveAndCheck(current);
-		for (int hop = 0; hop < FetchService.MAX_REDIRECTS; hop++) {
-			http.lock(target.host(), target.firstAddress());
-			try {
-				FetchResponse response = http.execute(target.uri());
-				if (response.isRedirect()) {
-					String location = response.location();
-					if (location == null || location.isBlank()) {
-						throw new FetchException("重定向响应缺少 Location 头：" + current);
-					}
-					current = target.uri().resolve(location).toString();
-					target = mainGuard.resolveAndCheck(current);
-					continue;
-				}
-				if (response.status() >= 400) {
-					throw new FetchException("抓取失败（HTTP " + response.status() + "）：" + target.uri());
-				}
-				return render(target.uri(), response, raw, screenshot);
-			}
-			catch (IOException e) {
-				throw new FetchException("抓取失败（" + target.uri() + "）：" + e.getMessage(), e);
-			}
-			finally {
-				http.unlock(target.host(), target.firstAddress());
-			}
-		}
-		throw new FetchException("重定向次数超过上限（" + FetchService.MAX_REDIRECTS + " 跳），已中止。");
+		FetchService.FetchedPage fetched = FetchService.fetchFollowingRedirects(mainGuard, http, url);
+		return render(fetched.uri(), fetched.response(), raw, screenshot);
 	}
 
 	/** HTML → 会话租约 + 浏览器渲染；非 HTML 复用快路径文档类型路由。 */
 	private BrowserResult render(URI uri, FetchResponse response, boolean raw, boolean screenshot) {
 		String body = response.bodyText();
 		String mediaType = response.mediaType();
-		if (!(FetchService.isHtml(mediaType) || (mediaType == null && FetchService.looksLikeHtml(body)))) {
+		if (!FetchService.isHtmlPage(mediaType, body)) {
 			return new BrowserResult(extractPlain(response, uri, raw), null);
 		}
 		String sessionId = registry.create();

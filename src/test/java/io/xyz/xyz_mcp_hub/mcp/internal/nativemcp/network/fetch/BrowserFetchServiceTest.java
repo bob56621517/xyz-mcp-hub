@@ -3,12 +3,7 @@ package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -16,12 +11,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.SharedChromium;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.WebSessionRegistry;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.ResolvedTarget;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,28 +28,6 @@ import org.junit.jupiter.api.Test;
  * @requires-service chromium 需本地安装 playwright chromium 二进制（headless，见 README）
  */
 class BrowserFetchServiceTest {
-
-	private static final String JS_PAGE_HTML = """
-			<!DOCTYPE html>
-			<html>
-			<head><meta charset="utf-8"><title>JS 渲染测试文章</title></head>
-			<body>
-			  <h1>JS 渲染测试文章</h1>
-			  <p>这是服务端渲染的引言段落，快路径也能读到。</p>
-			  <div id="dynamic"></div>
-			  <iframe src="/admin/secret"></iframe>
-			  <script>
-			    document.addEventListener('DOMContentLoaded', function () {
-			      var box = document.getElementById('dynamic');
-			      var p = document.createElement('p');
-			      p.id = 'js-paragraph';
-			      p.textContent = '这段正文由 JavaScript 动态生成，只有浏览器渲染后才能读到。';
-			      box.appendChild(p);
-			    });
-			  </script>
-			</body>
-			</html>
-			""";
 
 	private static final String STATIC_PAGE_HTML = """
 			<!DOCTYPE html>
@@ -80,11 +51,11 @@ class BrowserFetchServiceTest {
 	void setUp() throws IOException {
 		adminHits = new AtomicInteger();
 		server = HttpServer.create(new InetSocketAddress(0), 0);
-		server.createContext("/", exchange -> respond(exchange, JS_PAGE_HTML));
-		server.createContext("/static", exchange -> respond(exchange, STATIC_PAGE_HTML));
+		server.createContext("/", exchange -> FetchBrowserFixture.respond(exchange, FetchBrowserFixture.JS_PAGE_HTML));
+		server.createContext("/static", exchange -> FetchBrowserFixture.respond(exchange, STATIC_PAGE_HTML));
 		server.createContext("/admin/secret", exchange -> {
 			adminHits.incrementAndGet();
-			respond(exchange, "secret");
+			FetchBrowserFixture.respond(exchange, "secret");
 		});
 		server.start();
 		int port = server.getAddress().getPort();
@@ -96,7 +67,7 @@ class BrowserFetchServiceTest {
 		registry = new WebSessionRegistry(sharedChromium, 8, 300, 60);
 		browserService = new BrowserFetchService(http, registry, new ReadabilityExtractor(),
 				new HtmlToMarkdown(), new PdfTextExtractor(),
-				BrowserFetchServiceTest::allowLocalhost, new SsrUrlGuard(), 1000);
+				FetchBrowserFixture::allowLocalhost, new SsrUrlGuard(), 1000);
 	}
 
 	@AfterEach
@@ -105,23 +76,6 @@ class BrowserFetchServiceTest {
 		sharedChromium.destroy();
 		http.close();
 		server.stop(0);
-	}
-
-	private static void respond(HttpExchange exchange, String body) throws IOException {
-		byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-		exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
-		exchange.sendResponseHeaders(200, bytes.length);
-		try (OutputStream os = exchange.getResponseBody()) {
-			os.write(bytes);
-		}
-	}
-
-	/** 放行本地测试服务的主文档 guard：返回回环地址供锁定 IP 直连。 */
-	private static ResolvedTarget allowLocalhost(String url) {
-		URI uri = URI.create(url);
-		int port = uri.getPort() > 0 ? uri.getPort()
-			: ("https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80);
-		return new ResolvedTarget(uri, uri.getHost(), port, List.of(InetAddress.getLoopbackAddress()));
 	}
 
 	// ---- 验收：engine=browser 抓取本地 JS 渲染测试页，动态内容可见、正文 markdown 合理 ----
@@ -203,7 +157,7 @@ class BrowserFetchServiceTest {
 	@Test
 	void autoEngineUpgradesToBrowserWhenScriptDetected() {
 		FetchService fastService = new FetchService(
-				BrowserFetchServiceTest::allowLocalhost, http, new HtmlToMarkdown(), new PdfTextExtractor());
+				FetchBrowserFixture::allowLocalhost, http, new HtmlToMarkdown(), new PdfTextExtractor());
 		FetchTools tools = new FetchTools(fastService, browserService);
 		String out = tools.fetch(jsPageUrl, null, null, null, "auto", null);
 		// JS 页含 script → auto 升级浏览器路径 → 读到动态渲染内容
@@ -213,7 +167,7 @@ class BrowserFetchServiceTest {
 	@Test
 	void curlEngineStaysOnFastPath() {
 		FetchService fastService = new FetchService(
-				BrowserFetchServiceTest::allowLocalhost, http, new HtmlToMarkdown(), new PdfTextExtractor());
+				FetchBrowserFixture::allowLocalhost, http, new HtmlToMarkdown(), new PdfTextExtractor());
 		FetchTools tools = new FetchTools(fastService, browserService);
 		String out = tools.fetch(jsPageUrl, null, null, null, "curl", null);
 		// 快路径不渲染 JS，只能读到服务端 HTML 中的静态引言

@@ -1,17 +1,12 @@
 package io.xyz.xyz_mcp_hub;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.BrowserFetchService;
+import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.FetchBrowserFixture;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.FetchHttpClient;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.FetchService;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.HtmlToMarkdown;
@@ -20,7 +15,6 @@ import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.ReadabilityExtrac
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.SharedChromium;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.WebSessionRegistry;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.ResolvedTarget;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.SsrGuardException;
 
 /**
@@ -40,28 +34,6 @@ public class FetchRealApiSmoke {
 	private static final String EXAMPLE_URL = "https://example.com/";
 	private static final String PDF_URL =
 		"https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
-
-	private static final String JS_PAGE_HTML = """
-			<!DOCTYPE html>
-			<html>
-			<head><meta charset="utf-8"><title>JS 渲染冒烟页</title></head>
-			<body>
-			  <h1>JS 渲染冒烟页</h1>
-			  <p>这是服务端渲染的引言段落。</p>
-			  <div id="dynamic"></div>
-			  <iframe src="/admin/secret"></iframe>
-			  <script>
-			    document.addEventListener('DOMContentLoaded', function () {
-			      var box = document.getElementById('dynamic');
-			      var p = document.createElement('p');
-			      p.id = 'js-paragraph';
-			      p.textContent = '这段正文由 JavaScript 动态生成，只有浏览器渲染后才能读到。';
-			      box.appendChild(p);
-			    });
-			  </script>
-			</body>
-			</html>
-			""";
 
 	public static void main(String[] args) throws IOException {
 		FetchHttpClient http = new FetchHttpClient();
@@ -115,10 +87,11 @@ public class FetchRealApiSmoke {
 			// ---- 浏览器路径：本地 JS 渲染页（放行本地主文档 guard + 真实子资源 guard，必测） ----
 			localServer = HttpServer.create(new InetSocketAddress(0), 0);
 			AtomicInteger adminHits = new AtomicInteger();
-			localServer.createContext("/", exchange -> respond(exchange, JS_PAGE_HTML));
+			localServer.createContext("/",
+					exchange -> FetchBrowserFixture.respond(exchange, FetchBrowserFixture.JS_PAGE_HTML));
 			localServer.createContext("/admin/secret", exchange -> {
 				adminHits.incrementAndGet();
-				respond(exchange, "secret");
+				FetchBrowserFixture.respond(exchange, "secret");
 			});
 			localServer.start();
 			String jsUrl = "http://localhost:" + localServer.getAddress().getPort() + "/";
@@ -127,7 +100,7 @@ public class FetchRealApiSmoke {
 			registry = new WebSessionRegistry(chromium, 8, 300, 60);
 			BrowserFetchService browserService = new BrowserFetchService(http, registry,
 					new ReadabilityExtractor(), htmlToMarkdown, pdfTextExtractor,
-					FetchRealApiSmoke::allowLocalhost, new SsrUrlGuard(), 1000);
+					FetchBrowserFixture::allowLocalhost, new SsrUrlGuard(), 1000);
 
 			System.out.println("[6/9] 浏览器路径 engine=browser 抓取本地 JS 渲染页");
 			String jsMd = browserService.fetch(jsUrl, 2000, 0, false, false);
@@ -173,23 +146,6 @@ public class FetchRealApiSmoke {
 			}
 			http.close();
 		}
-	}
-
-	private static void respond(HttpExchange exchange, String body) throws IOException {
-		byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-		exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
-		exchange.sendResponseHeaders(200, bytes.length);
-		try (OutputStream os = exchange.getResponseBody()) {
-			os.write(bytes);
-		}
-	}
-
-	/** 放行本地测试服务的主文档 guard：返回回环地址供锁定 IP 直连。 */
-	private static ResolvedTarget allowLocalhost(String url) {
-		URI uri = URI.create(url);
-		int port = uri.getPort() > 0 ? uri.getPort()
-			: ("https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80);
-		return new ResolvedTarget(uri, uri.getHost(), port, List.of(InetAddress.getLoopbackAddress()));
 	}
 
 	private static String truncate(String s, int max) {
