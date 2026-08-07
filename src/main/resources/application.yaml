@@ -40,6 +40,12 @@ playwright:
     max: 8
     scan-interval-seconds: 60
 
+fetch:
+  # fetch 端点浏览器路径（见 issue #19，架构设计见 #15）。wait-after-load-ms 页面 setContent 渲染后
+  # 等待 JS 执行的固定时长（毫秒，默认 1000）；太长拖慢响应、太短 JS 渲染不全
+  browser:
+    wait-after-load-ms: 1000
+
 # 配置驱动的组合端点 Space（见 ADR-0008）：从已注册端点引用工具聚合为独立端点。
 # 在此声明 mcp.spaces 即启用，schema 与示例见 docs/adr/0008-composed-space-config.md：
 #   mcp:

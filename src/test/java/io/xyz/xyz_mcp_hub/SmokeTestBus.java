@@ -56,7 +56,7 @@ public class SmokeTestBus {
 							McpPlaywrightEndpointTest.main(new String[0]);
 							return null;
 						})),
-				new SmokeTask("fetch", "快路径抓取（HTML/PDF/SSRF 拦截，@requires-web）",
+				new SmokeTask("fetch", "快路径抓取（HTML/PDF/SSRF 拦截，@requires-web）+ 浏览器路径（engine=browser，JS 渲染/双路径/子资源 SSRF/截图，@requires-service chromium）",
 						() -> callMain(() -> {
 							FetchRealApiSmoke.main(new String[0]);
 							return null;
