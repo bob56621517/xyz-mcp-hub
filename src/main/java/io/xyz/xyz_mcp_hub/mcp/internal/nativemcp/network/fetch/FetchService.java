@@ -49,8 +49,16 @@ public class FetchService {
 	}
 
 	public String fetch(String url, Integer maxLength, Integer startIndex, Boolean raw) {
+		return fetchWithMeta(url, maxLength, startIndex, raw).content();
+	}
+
+	/**
+	 * 快路径抓取并返回结果 + 元信息：{@code hasScript} 供 auto 引擎判定 HTML 是否含脚本
+	 * （JS 渲染迹象，需要升级浏览器路径）。
+	 */
+	public FetchResult fetchWithMeta(String url, Integer maxLength, Integer startIndex, Boolean raw) {
 		if (url == null || url.isBlank()) {
-			return "请提供要抓取的 URL。";
+			return new FetchResult("请提供要抓取的 URL。", false);
 		}
 		int max = (maxLength == null || maxLength <= 0) ? DEFAULT_MAX_LENGTH : maxLength;
 		int start = (startIndex == null || startIndex < 0) ? 0 : startIndex;
@@ -58,7 +66,22 @@ public class FetchService {
 
 		Page page = fetchPage(url.strip());
 		String content = extractContent(page, isRaw);
-		return chunk(content, start, max);
+		return new FetchResult(chunk(content, start, max), hasScript(page));
+	}
+
+	/** HTML 且前部含 {@code <script>} → 判定为 JS 渲染迹象（auto 引擎据此升级浏览器路径）。 */
+	private static boolean hasScript(Page page) {
+		String mediaType = page.response().mediaType();
+		if (!(isHtml(mediaType) || (mediaType == null && looksLikeHtml(page.body())))) {
+			return false;
+		}
+		String body = page.body();
+		String head = body.length() > 8192 ? body.substring(0, 8192) : body;
+		return head.toLowerCase(Locale.ROOT).contains("<script");
+	}
+
+	/** 快路径结果：content 为分块后文本，hasScript 供 auto 引擎判定。 */
+	public record FetchResult(String content, boolean hasScript) {
 	}
 
 	/** 逐跳抓取：每跳先 SSRF 校验并锁定，3xx 手动取 Location 重新校验（防 302→内网）。 */
@@ -109,15 +132,15 @@ public class FetchService {
 		return "该内容类型暂不支持：" + type + "（当前支持 HTML、PDF 与纯文本）。";
 	}
 
-	private static boolean isHtml(String mediaType) {
+	static boolean isHtml(String mediaType) {
 		return mediaType != null && mediaType.contains("html");
 	}
 
-	private static boolean isPdf(String mediaType) {
+	static boolean isPdf(String mediaType) {
 		return mediaType != null && mediaType.contains("pdf");
 	}
 
-	private static boolean isText(String mediaType) {
+	static boolean isText(String mediaType) {
 		if (mediaType == null) {
 			return false;
 		}
@@ -125,19 +148,19 @@ public class FetchService {
 			|| mediaType.contains("xml") || mediaType.contains("javascript");
 	}
 
-	private static boolean isPdfUrl(URI uri) {
+	static boolean isPdfUrl(URI uri) {
 		String path = uri.getPath();
 		return path != null && path.toLowerCase(Locale.ROOT).endsWith(".pdf");
 	}
 
-	private static boolean looksLikeHtml(String body) {
+	static boolean looksLikeHtml(String body) {
 		String head = body.length() > 1024 ? body.substring(0, 1024) : body;
 		String lower = head.toLowerCase(Locale.ROOT);
 		return lower.contains("<!doctype html") || lower.contains("<html");
 	}
 
 	/** start_index/max_length 分块，附前后省略提示（对齐官方）。 */
-	private static String chunk(String content, int start, int max) {
+	static String chunk(String content, int start, int max) {
 		int len = content.length();
 		int from = (int) Math.min(start, (long) len);
 		int to = (int) Math.min((long) start + max, (long) len);

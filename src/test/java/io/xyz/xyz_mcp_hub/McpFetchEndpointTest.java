@@ -64,12 +64,14 @@ class McpFetchEndpointTest {
 			.findFirst()
 			.orElseThrow();
 		String schema = tool.inputSchema().toString();
-		// 对齐官方 mcp-server-fetch：url / max_length / start_index / raw
+		// 对齐官方 mcp-server-fetch：url / max_length / start_index / raw，另扩展 engine / screenshot
 		assertThat(schema)
 			.contains("url={type=string")
 			.contains("max_length={type=integer")
 			.contains("start_index={type=integer")
-			.contains("raw={type=boolean");
+			.contains("raw={type=boolean")
+			.contains("engine={type=string")
+			.contains("screenshot={type=boolean");
 	}
 
 	@Test
@@ -77,6 +79,23 @@ class McpFetchEndpointTest {
 		client = connect();
 		String out = callText(McpSchema.CallToolRequest.builder("fetch")
 			.arguments(Map.of("url", "http://127.0.0.1:1/")).build());
+		assertThat(out).contains("SSRF 防护拦截");
+	}
+
+	@Test
+	void callFetchWithBrowserEngineOnPrivateIpBlockedBySsrf() {
+		client = connect();
+		String out = callText(McpSchema.CallToolRequest.builder("fetch")
+			.arguments(Map.of("url", "http://127.0.0.1:1/", "engine", "browser")).build());
+		// 浏览器路径主文档同样过 SSRF 闸，内网 URL 直接拦截、不启动浏览器
+		assertThat(out).contains("SSRF 防护拦截");
+	}
+
+	@Test
+	void callFetchWithUnknownEngineFallsBackToAuto() {
+		client = connect();
+		String out = callText(McpSchema.CallToolRequest.builder("fetch")
+			.arguments(Map.of("url", "http://127.0.0.1:1/", "engine", "weird")).build());
 		assertThat(out).contains("SSRF 防护拦截");
 	}
 
