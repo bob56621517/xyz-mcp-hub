@@ -32,6 +32,8 @@
 		<vaadin.version>25.2.5</vaadin.version>
 		<spring-modulith.version>2.1.0</spring-modulith.version>
 		<playwright.version>1.62.0</playwright.version>
+		<jsoup.version>1.22.2</jsoup.version>
+		<pdfbox.version>2.0.26</pdfbox.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -59,6 +61,20 @@
 			<groupId>com.microsoft.playwright</groupId>
 			<artifactId>playwright</artifactId>
 			<version>${playwright.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jsoup</groupId>
+			<artifactId>jsoup</artifactId>
+			<version>${jsoup.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>${pdfbox.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
 		</dependency>
 
 
