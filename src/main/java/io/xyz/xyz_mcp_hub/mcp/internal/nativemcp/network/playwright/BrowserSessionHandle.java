@@ -7,7 +7,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
-import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.ConsoleMessage;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
@@ -15,20 +14,17 @@ import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.Response;
 import com.microsoft.playwright.options.ScreenshotType;
 import com.microsoft.playwright.options.WaitForSelectorState;
-import org.springframework.beans.factory.DisposableBean;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 /**
- * Playwright 浏览器会话：单例持有底层 {@link Playwright}/{@link Browser}/{@link BrowserContext}
- * 与当前标签页，供 {@link PlaywrightTools} 使用。懒启动——首次工具调用时才拉起无头浏览器，
- * 应用关闭时随 {@link #destroy()} 释放。
+ * 单个浏览器会话的句柄：持有**独立的** {@link Playwright} 连接与 {@link BrowserContext}，
+ * 通过 {@code connectOverCDP} 连接到 {@link SharedChromium} 共享的浏览器进程。一个 sessionId
+ * 对应一个实例。
  *
- * <p>并发约定：Playwright 同步 API 内部已阻塞等待 driver 完成，@Tool 方法返回时浏览器操作
- * 必然已结束；所有会话操作加 {@code synchronized}，保证同一浏览器不被并发调用交错。</p>
+ * <p>每会话独立连接 → 独立 driver 连接与对象引用表 → 线程安全，不同会话可真正并发
+ * （规避单 Playwright 实例跨线程报 {@code Object doesn't exist}）。同会话内操作仍加
+ * {@code synchronized} 串行。{@link #lastAccessNanos} 用于注册表 TTL 自动回收。</p>
  */
-@Component
-public class PlaywrightSession implements DisposableBean {
+public class BrowserSessionHandle implements AutoCloseable {
 
 	/** 单会话内保留的最大请求/控制台消息条数，超出丢弃最旧。 */
 	private static final int MAX_RECORDS = 500;
@@ -39,36 +35,26 @@ public class PlaywrightSession implements DisposableBean {
 	private static final List<String> STATIC_RESOURCE_TYPES =
 		List.of("image", "font", "stylesheet", "script", "media");
 
-	private final boolean headless;
 	private final double navigationTimeoutSeconds;
 
-	private volatile Playwright playwright;
-	private volatile Browser browser;
-	private volatile BrowserContext context;
-	private volatile Page currentPage;
-
-	private volatile boolean dialogAutoAccept = true;
-	private volatile String dialogPromptText;
+	private final Playwright playwright;
+	private final Browser browser;
+	private final BrowserContext context;
 
 	private final List<Map<String, Object>> requests = new CopyOnWriteArrayList<>();
 	private final List<Map<String, Object>> consoleMessages = new CopyOnWriteArrayList<>();
 
-	public PlaywrightSession(
-			@Value("${playwright.headless:true}") boolean headless,
-			@Value("${playwright.navigation-timeout-seconds:30}") double navigationTimeoutSeconds) {
-		this.headless = headless;
-		this.navigationTimeoutSeconds = navigationTimeoutSeconds;
-	}
+	private volatile Page currentPage;
+	private volatile boolean dialogAutoAccept = true;
+	private volatile String dialogPromptText;
+	private volatile long lastAccessNanos;
+	private volatile boolean closed;
 
-	private synchronized void start() {
-		if (browser != null) {
-			return;
-		}
-		playwright = Playwright.create();
-		browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
-			.setHeadless(headless)
-			.setTimeout(60000));
-		context = browser.newContext(new Browser.NewContextOptions().setViewportSize(1280, 720));
+	public BrowserSessionHandle(String cdpEndpoint, double navigationTimeoutSeconds) {
+		this.navigationTimeoutSeconds = navigationTimeoutSeconds;
+		this.playwright = Playwright.create();
+		this.browser = playwright.chromium().connectOverCDP(cdpEndpoint);
+		this.context = browser.newContext(new Browser.NewContextOptions().setViewportSize(1280, 720));
 		context.onResponse(this::recordResponse);
 		context.onConsoleMessage(this::recordConsoleMessage);
 		context.onDialog(dialog -> {
@@ -84,11 +70,20 @@ public class PlaywrightSession implements DisposableBean {
 				dialog.dismiss();
 			}
 		});
+		touch();
+	}
+
+	/** 记录一次访问，用于 TTL 判断（每次通过注册表取句柄时更新）。 */
+	public void touch() {
+		lastAccessNanos = System.nanoTime();
+	}
+
+	long lastAccessNanos() {
+		return lastAccessNanos;
 	}
 
 	/** 当前活动标签页；无则懒创建新页。 */
 	public synchronized Page page() {
-		start();
 		if (currentPage == null || currentPage.isClosed()) {
 			List<Page> pages = context.pages();
 			currentPage = pages.isEmpty() ? context.newPage() : pages.get(pages.size() - 1);
@@ -156,7 +151,6 @@ public class PlaywrightSession implements DisposableBean {
 
 	/** 标签页管理：list / new / close / select。index 从 0 开始对应标签页列表。 */
 	public synchronized String tabs(String action, Integer index, String url) {
-		start();
 		switch (action) {
 			case "list" -> {
 				List<Page> pages = context.pages();
@@ -344,17 +338,29 @@ public class PlaywrightSession implements DisposableBean {
 	}
 
 	@Override
-	public void destroy() {
-		if (browser != null) {
+	public void close() {
+		if (closed) {
+			return;
+		}
+		closed = true;
+		try {
+			context.close();
+		}
+		catch (RuntimeException ignored) {
+			// 连接可能已断开，忽略
+		}
+		try {
 			browser.close();
 		}
-		if (playwright != null) {
+		catch (RuntimeException ignored) {
+			// connectOverCDP 的 close 只断开本客户端连接，失败不影响进程清理
+		}
+		try {
 			playwright.close();
 		}
-		browser = null;
-		playwright = null;
-		context = null;
-		currentPage = null;
+		catch (RuntimeException ignored) {
+			// 忽略，释放尽力而为
+		}
 	}
 
 }
