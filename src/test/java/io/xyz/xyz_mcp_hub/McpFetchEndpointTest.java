@@ -57,6 +57,22 @@ class McpFetchEndpointTest {
 	}
 
 	@Test
+	void fetchToolSchemaUsesOfficialSnakeCaseParams() {
+		client = connect();
+		var tool = client.listTools().tools().stream()
+			.filter(t -> "fetch".equals(t.name()))
+			.findFirst()
+			.orElseThrow();
+		String schema = tool.inputSchema().toString();
+		// 对齐官方 mcp-server-fetch：url / max_length / start_index / raw
+		assertThat(schema)
+			.contains("url={type=string")
+			.contains("max_length={type=integer")
+			.contains("start_index={type=integer")
+			.contains("raw={type=boolean");
+	}
+
+	@Test
 	void callFetchOnPrivateIpBlockedBySsrf() {
 		client = connect();
 		String out = callText(McpSchema.CallToolRequest.builder("fetch")

@@ -9,6 +9,7 @@ import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
@@ -47,7 +48,7 @@ public final class FetchHttpClient implements AutoCloseable, DisposableBean {
 	private static final Pattern CHARSET_PATTERN = Pattern.compile("charset\\s*=\\s*[\"']?([\\w-]+)");
 
 	private final CloseableHttpClient client;
-	private final ConcurrentMap<String, InetAddress> lockedHosts = new ConcurrentHashMap<>();
+	private final ConcurrentMap<String, Set<InetAddress>> lockedHosts = new ConcurrentHashMap<>();
 
 	public FetchHttpClient() {
 		RequestConfig requestConfig = RequestConfig.custom()
@@ -76,22 +77,28 @@ public final class FetchHttpClient implements AutoCloseable, DisposableBean {
 			.build();
 	}
 
-	/** 记录「校验通过的 host → 锁定公网 IP」，供 {@link DnsResolver} 建连。 */
+	/** 记录「校验通过的 host → 锁定公网 IP」，供 {@link DnsResolver} 建连。同一 host 并发锁定不互相覆盖。 */
 	public void lock(String host, InetAddress address) {
-		lockedHosts.put(host, address);
+		lockedHosts.computeIfAbsent(host, key -> ConcurrentHashMap.newKeySet()).add(address);
 	}
 
-	/** 移除锁定；请求结束必须调用，避免脏数据残留。 */
-	public void unlock(String host) {
-		lockedHosts.remove(host);
+	/** 移除本次请求的锁定；仅移除自身条目，不影响并发同 host 的在途请求。 */
+	public void unlock(String host, InetAddress address) {
+		Set<InetAddress> addresses = lockedHosts.get(host);
+		if (addresses != null) {
+			addresses.remove(address);
+			if (addresses.isEmpty()) {
+				lockedHosts.remove(host);
+			}
+		}
 	}
 
 	private InetAddress[] resolveLocked(String host) throws UnknownHostException {
-		InetAddress locked = lockedHosts.get(host);
-		if (locked == null) {
+		Set<InetAddress> addresses = lockedHosts.get(host);
+		if (addresses == null || addresses.isEmpty()) {
 			throw new UnknownHostException("未经 SSRF 校验的主机，拒绝建连：" + host);
 		}
-		return new InetAddress[] { locked };
+		return addresses.toArray(InetAddress[]::new);
 	}
 
 	@Override

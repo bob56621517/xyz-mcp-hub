@@ -7,7 +7,7 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
 
 /**
- * PDF 文本提取（Apache PDFBox，ADR-0010 决策「PDF→PDFBox」）。
+ * PDF 文本提取（Apache PDFBox，issue #15 ADR-0010 决策「PDF→PDFBox」）。
  * 从 PDF 字节流提取纯文本，供 fetch 端点的 PDF 文档类型路由使用。
  */
 @Component

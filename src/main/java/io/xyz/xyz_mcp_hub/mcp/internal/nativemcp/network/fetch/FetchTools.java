@@ -24,11 +24,11 @@ public class FetchTools {
 		""")
 	public String fetch(
 			@ToolParam(description = "要抓取的 URL（http/https）") String url,
-			@ToolParam(required = false, description = "返回内容最大字符数，默认 5000") Integer maxLength,
-			@ToolParam(required = false, description = "起始截取位置，默认 0") Integer startIndex,
+			@ToolParam(required = false, description = "返回内容最大字符数，默认 5000") Integer max_length,
+			@ToolParam(required = false, description = "起始截取位置，默认 0") Integer start_index,
 			@ToolParam(required = false, description = "返回原始内容而非 Markdown，默认 false") Boolean raw) {
 		try {
-			return fetchService.fetch(url, maxLength, startIndex, raw);
+			return fetchService.fetch(url, max_length, start_index, raw);
 		}
 		catch (SsrGuardException e) {
 			return "SSRF 防护拦截：" + e.getMessage();

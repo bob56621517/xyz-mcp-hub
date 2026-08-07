@@ -77,13 +77,16 @@ public class FetchService {
 					current = target.uri().resolve(location).toString();
 					continue;
 				}
+				if (response.status() >= 400) {
+					throw new FetchException("抓取失败（HTTP " + response.status() + "）：" + target.uri());
+				}
 				return new Page(target.uri(), response);
 			}
 			catch (IOException e) {
 				throw new FetchException("抓取失败（" + target.uri() + "）：" + e.getMessage(), e);
 			}
 			finally {
-				http.unlock(target.host());
+				http.unlock(target.host(), target.firstAddress());
 			}
 		}
 		throw new FetchException("重定向次数超过上限（" + MAX_REDIRECTS + " 跳），已中止。");
@@ -136,8 +139,8 @@ public class FetchService {
 	/** start_index/max_length 分块，附前后省略提示（对齐官方）。 */
 	private static String chunk(String content, int start, int max) {
 		int len = content.length();
-		int from = Math.min(start, len);
-		int to = Math.min(start + max, len);
+		int from = (int) Math.min(start, (long) len);
+		int to = (int) Math.min((long) start + max, (long) len);
 		StringBuilder sb = new StringBuilder();
 		if (from > 0) {
 			sb.append(PREFIX_OMITTED).append('\n');

@@ -62,6 +62,11 @@ class FetchServiceTest {
 				PAGE_HTML.getBytes(StandardCharsets.UTF_8)));
 		server.createContext("/redirect", exchange -> respondRedirect(exchange, "/page"));
 		server.createContext("/loop", exchange -> respondRedirect(exchange, "/loop"));
+		server.createContext("/start", exchange -> respondRedirect(exchange, "/evil"));
+		server.createContext("/evil", exchange -> respond(exchange, 200, "text/html; charset=utf-8",
+				PAGE_HTML.getBytes(StandardCharsets.UTF_8)));
+		server.createContext("/notfound", exchange -> respond(exchange, 404, "text/html; charset=utf-8",
+				"<h1>Not Found</h1>".getBytes(StandardCharsets.UTF_8)));
 		server.createContext("/pdf", exchange -> respond(exchange, 200, "application/pdf", samplePdf()));
 		server.createContext("/img", exchange -> respond(exchange, 200, "image/png", new byte[] { 0x01, 0x02 }));
 		server.createContext("/long", exchange -> respond(exchange, 200, "text/plain; charset=utf-8",
@@ -139,6 +144,27 @@ class FetchServiceTest {
 	@Test
 	void blankUrlReturnsHint() {
 		assertThat(service.fetch("  ", null, null, null)).contains("请提供要抓取的 URL");
+	}
+
+	@Test
+	void httpErrorStatusThrows() {
+		assertThatThrownBy(() -> service.fetch(baseUrl + "/notfound", null, null, null))
+			.isInstanceOf(FetchException.class)
+			.hasMessageContaining("HTTP 404");
+	}
+
+	@Test
+	void redirectChainGuardRejectsNextHop() {
+		// 第一跳放行本地，第二跳（/evil）被 guard 拒绝 → 验证逐跳重定向重新校验
+		FetchUrlGuard chainGuard = url -> {
+			if (url.contains("/evil")) {
+				throw new SsrGuardException("目标 IP 落在内网/保留段，已拦截：" + url);
+			}
+			return allowLocal().resolveAndCheck(url);
+		};
+		FetchService guarded = new FetchService(chainGuard, http, new HtmlToMarkdown(), new PdfTextExtractor());
+		assertThatThrownBy(() -> guarded.fetch(baseUrl + "/start", null, null, null))
+			.isInstanceOf(SsrGuardException.class);
 	}
 
 	// ---- SSRF 集成（真实 guard） ----
