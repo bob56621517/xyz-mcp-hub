@@ -59,7 +59,7 @@ class McpGracefulDegradationTest {
 
 	@Test
 	void appStartsAndRegisteredEndpointStillWorksWhenUpstreamUnreachable() {
-		client = connect("/mcp/server/utils");
+		client = connect("/mcp/builtin/utils");
 		var tools = client.listTools().tools();
 		assertThat(tools).extracting(McpSchema.Tool::name).contains("currentDateTime");
 	}
@@ -67,7 +67,7 @@ class McpGracefulDegradationTest {
 	@Test
 	void unreachableProxyEndpointIsNotExposed() {
 		assertThatThrownBy(() -> {
-			var c = connect("/mcp/server/unreachable-proxy");
+			var c = connect("/mcp/builtin/unreachable-proxy");
 			c.listTools();
 		}).isInstanceOf(Exception.class);
 	}
@@ -90,7 +90,7 @@ class McpGracefulDegradationTest {
 
 		@Override
 		public String getPath() {
-			return "/mcp/server/unreachable-proxy";
+			return "/mcp/builtin/unreachable-proxy";
 		}
 
 		@Override

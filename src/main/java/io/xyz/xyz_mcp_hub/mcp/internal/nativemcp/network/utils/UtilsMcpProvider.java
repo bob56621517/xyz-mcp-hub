@@ -9,7 +9,7 @@ import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * Utils 原生 MCP 端点提供者，暴露 {@code /mcp/server/utils}。
+ * Utils 原生 MCP 端点提供者，暴露 {@code /mcp/builtin/utils}。
  */
 @Component
 public class UtilsMcpProvider extends NativeMcp {
@@ -29,7 +29,7 @@ public class UtilsMcpProvider extends NativeMcp {
 
 	@Override
 	public String getPath() {
-		return "/mcp/server/utils";
+		return "/mcp/builtin/utils";
 	}
 
 	@Override

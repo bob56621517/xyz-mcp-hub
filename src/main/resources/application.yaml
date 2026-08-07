@@ -28,3 +28,15 @@ github:
   upstream-url: https://api.githubcopilot.com/mcp/
   # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005）；缺省为空，github-full / github-readonly 不注册
   token: ${GITHUB_TOKEN:}
+
+# 配置驱动的组合端点 Space（见 ADR-0008）：从已注册端点引用工具聚合为独立端点。
+# 在此声明 mcp.spaces 即启用，schema 与示例见 docs/adr/0008-composed-space-config.md：
+#   mcp:
+#     spaces:
+#       devops:
+#         sources:
+#           - source: github-readonly
+#           - source: utils
+#             include: [currentDateTime]
+# 引用未启用/不可达源端点会跳过并告警；include/exclude 引用不存在的工具会启动 fail-fast。
+# 默认不声明任何 Space。

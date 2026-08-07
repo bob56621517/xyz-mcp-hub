@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 class McpPublicProxyEndpointTest {
 
 	private static final String[] PUBLIC_PATHS = {
-			"/mcp/server/context7", "/mcp/server/grep-app", "/mcp/server/wikidata"
+			"/mcp/builtin/context7", "/mcp/builtin/grep-app", "/mcp/builtin/wikidata"
 	};
 
 	private static ConfigurableApplicationContext upstreamContext;
@@ -110,19 +110,19 @@ class McpPublicProxyEndpointTest {
 	@Test
 	@Order(1)
 	void context7EndpointRegistersAndForwards() {
-		assertEndpointForwards("/mcp/server/context7");
+		assertEndpointForwards("/mcp/builtin/context7");
 	}
 
 	@Test
 	@Order(2)
 	void grepAppEndpointRegistersAndForwards() {
-		assertEndpointForwards("/mcp/server/grep-app");
+		assertEndpointForwards("/mcp/builtin/grep-app");
 	}
 
 	@Test
 	@Order(3)
 	void wikidataEndpointRegistersAndForwards() {
-		assertEndpointForwards("/mcp/server/wikidata");
+		assertEndpointForwards("/mcp/builtin/wikidata");
 	}
 
 	@Test
@@ -143,7 +143,7 @@ class McpPublicProxyEndpointTest {
 	@Test
 	@Order(6)
 	void upstreamErrorPropagatesIsError() {
-		client = connect("/mcp/server/context7");
+		client = connect("/mcp/builtin/context7");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("fail").arguments(Map.of()).build());
 		assertThat(result.isError()).isTrue();
 		var text = (McpSchema.TextContent) result.content().get(0);
