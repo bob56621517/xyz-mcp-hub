@@ -6,8 +6,9 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.spec.McpSchema;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.PlaywrightSession;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.PlaywrightTools;
+import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.SharedChromium;
+import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.WebSessionRegistry;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -16,6 +17,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +34,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Playwright 端点集成测试：连接 {@code /mcp/builtin/playwright}，用无头 chromium 打开本地
  * 测试页，按 {@code docs/testing/mcp-service-test-guide.md} 对每个 {@code @Tool} 逐个真实
- * 调用并断言结果合理。
+ * 调用并断言结果合理。会话租约模型下，每次连接先 {@code web_session(create)} 拿 sessionId，
+ * 所有浏览器工具携带 sessionId 路由；并验证两会话隔离、无 sessionId 报错、TTL 回收与并发上限。
  *
  * <p>手工冒烟（非自动测试）：{@code ./mvnw exec:java -Dexec.mainClass=io.xyz.xyz_mcp_hub.McpPlaywrightEndpointTest -Dexec.classpathScope=test -Dvaadin.skip=true}</p>
  *
@@ -102,6 +109,7 @@ class McpPlaywrightEndpointTest {
 	private HttpServer localServer;
 	private String pageUrl;
 	private McpSyncClient client;
+	private String sessionId;
 
 	@BeforeEach
 	void startLocalPage() throws IOException {
@@ -125,12 +133,20 @@ class McpPlaywrightEndpointTest {
 	@AfterEach
 	void tearDown() {
 		if (client != null) {
+			if (sessionId != null) {
+				try {
+					callRaw("web_session", Map.of("action", "close", "sessionId", sessionId));
+				}
+				catch (RuntimeException ignored) {
+					// 会话可能已被 TTL 回收或测试中途关闭，忽略
+				}
+			}
 			client.closeGracefully();
 		}
 		localServer.stop(0);
 	}
 
-	private McpSyncClient connect() {
+	private McpSyncClient newClient() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
 			.endpoint("/mcp/builtin/playwright")
 			.build();
@@ -139,15 +155,49 @@ class McpPlaywrightEndpointTest {
 		return c;
 	}
 
-	private String callText(McpSchema.CallToolRequest request) {
-		var result = client.callTool(request);
+	/** 建立主连接并创建一个会话，后续 callTool 自动携带该 sessionId。 */
+	private McpSyncClient connect() {
+		this.client = newClient();
+		this.sessionId = createSession(this.client);
+		return this.client;
+	}
+
+	private String createSession(McpSyncClient c) {
+		String text = callText(c, McpSchema.CallToolRequest.builder("web_session")
+			.arguments(Map.of("action", "create")).build());
+		// Spring AI 对工具返回值做 JSON 序列化，文本两侧带引号，提取 sessionId 时去掉
+		return text.substring(text.indexOf("sessionId: ") + "sessionId: ".length()).replace("\"", "");
+	}
+
+	private String callText(McpSyncClient c, McpSchema.CallToolRequest request) {
+		var result = c.callTool(request);
 		assertThat(result.isError()).as("callTool 不应报错：%s", result).isFalse();
 		assertThat(result.content()).isNotEmpty();
 		return ((McpSchema.TextContent) result.content().get(0)).text();
 	}
 
+	/** 用主会话 sessionId 调用工具（自动注入 sessionId 参数）。 */
 	private String callTool(String tool, Map<String, Object> arguments) {
-		return callText(McpSchema.CallToolRequest.builder(tool).arguments(arguments).build());
+		Map<String, Object> args = new java.util.HashMap<>(arguments);
+		args.put("sessionId", sessionId);
+		return callText(client, McpSchema.CallToolRequest.builder(tool).arguments(args).build());
+	}
+
+	/** 用指定 client 调用工具，不注入 sessionId（调用方自传）。 */
+	private String callRaw(McpSyncClient c, String tool, Map<String, Object> arguments) {
+		return callText(c, McpSchema.CallToolRequest.builder(tool).arguments(arguments).build());
+	}
+
+	private String callRaw(String tool, Map<String, Object> arguments) {
+		return callRaw(client, tool, arguments);
+	}
+
+	private String webSessionClose(String sid) {
+		return callRaw("web_session", Map.of("action", "close", "sessionId", sid));
+	}
+
+	private String webSessionList() {
+		return callRaw("web_session", Map.of("action", "list"));
 	}
 
 	private void navigate() {
@@ -161,7 +211,7 @@ class McpPlaywrightEndpointTest {
 		client = connect();
 		var tools = client.listTools().tools();
 		assertThat(tools).extracting(McpSchema.Tool::name)
-			.contains("browser_navigate", "browser_go_back", "browser_go_forward",
+			.contains("web_session", "browser_navigate", "browser_go_back", "browser_go_forward",
 					"browser_snapshot", "browser_take_screenshot", "browser_click",
 					"browser_hover", "browser_type", "browser_press_key",
 					"browser_select_option", "browser_fill_form", "browser_resize",
@@ -350,9 +400,96 @@ class McpPlaywrightEndpointTest {
 		assertThat(callTool("browser_snapshot", Map.of())).contains("Playwright Test Page");
 	}
 
+	// ---- 会话租约：创建 / 关闭 / 无 sessionId 报错 ----
+
+	@Test
+	void webSessionCreateListAndClose() {
+		client = connect();
+		// connect 已建一个会话，再建一个，list 应显示 2
+		String second = createSession(client);
+		assertThat(second).startsWith("ws-");
+		assertThat(webSessionList()).contains("2");
+		assertThat(webSessionClose(second)).contains("已关闭");
+		assertThat(webSessionList()).contains("1");
+		// 关闭后的会话再操作应报错
+		assertThat(callRaw("browser_navigate", Map.of("sessionId", second, "url", pageUrl)))
+			.contains("不存在或已被关闭");
+		// close 不存在的会话返回提示
+		assertThat(webSessionClose("ws-99999")).contains("不存在");
+	}
+
+	@Test
+	void missingSessionIdReturnsClearError() {
+		client = connect();
+		String text = callRaw("browser_navigate", Map.of("url", pageUrl));
+		assertThat(text).contains("缺少 sessionId");
+	}
+
+	@Test
+	void twoSessionsAreIsolated() {
+		client = connect();
+		String sessionB = createSession(client);
+		try {
+			// 两会话各自导航到同一首页（隔离 BrowserContext，互不共享）
+			navigate();
+			callRaw("browser_navigate", Map.of("sessionId", sessionB, "url", pageUrl));
+			// DOM 状态隔离：A 点击计数 +1，B 不受影响
+			callTool("browser_click", Map.of("target", "#counter"));
+			assertThat(callTool("browser_evaluate",
+					Map.of("function", "document.getElementById('counter').textContent")))
+				.contains("count: 1");
+			assertThat(callRaw("browser_evaluate", Map.of("sessionId", sessionB,
+					"function", "document.getElementById('counter').textContent")))
+				.contains("count: 0");
+			// 存储隔离：B 写入 localStorage，A 读不到，证明 cookie/存储独立
+			callRaw("browser_evaluate", Map.of("sessionId", sessionB,
+					"function", "localStorage.setItem('k', 'b-value')"));
+			assertThat(callTool("browser_evaluate", Map.of("function", "localStorage.getItem('k')")))
+				.contains("null");
+			assertThat(callRaw("browser_evaluate", Map.of("sessionId", sessionB,
+					"function", "localStorage.getItem('k')")))
+				.contains("b-value");
+		}
+		finally {
+			webSessionClose(sessionB);
+		}
+	}
+
+	@Test
+	void concurrentSessionsInterleavedOperationsDoNotMix() throws Exception {
+		// 会话 A：主连接；会话 B：独立连接（模拟两个 agent 并发连端点）
+		client = connect();
+		McpSyncClient clientB = newClient();
+		String sessionB = createSession(clientB);
+		try {
+			ExecutorService pool = Executors.newFixedThreadPool(2);
+			try {
+				Future<String> fa = pool.submit((Callable<String>) () -> {
+					callTool("browser_navigate", Map.of("url", pageUrl));
+					return callTool("browser_evaluate", Map.of("function", "location.pathname"));
+				});
+				Future<String> fb = pool.submit((Callable<String>) () -> {
+					callRaw(clientB, "browser_navigate",
+							Map.of("sessionId", sessionB, "url", pageUrl + "page2"));
+					return callRaw(clientB, "browser_evaluate",
+							Map.of("sessionId", sessionB, "function", "location.pathname"));
+				});
+				assertThat(fa.get(60, TimeUnit.SECONDS)).contains("/");
+				assertThat(fb.get(60, TimeUnit.SECONDS)).contains("/page2");
+			}
+			finally {
+				pool.shutdownNow();
+			}
+		}
+		finally {
+			webSessionClose(sessionB);
+			clientB.closeGracefully();
+		}
+	}
+
 	/**
-	 * 手工冒烟（非自动测试）：起本地页，走通 navigate → snapshot → click → evaluate 主链路，
-	 * 步骤化输出供 issue 留证。运行：
+	 * 手工冒烟（非自动测试）：起本地页，走通 create session → navigate → snapshot → click →
+	 * evaluate 主链路，步骤化输出供 issue 留证。运行：
 	 * {@code ./mvnw exec:java -Dexec.mainClass=io.xyz.xyz_mcp_hub.McpPlaywrightEndpointTest -Dexec.classpathScope=test -Dvaadin.skip=true}
 	 *
 	 * @requires-service chromium 需本地安装 playwright chromium 二进制（headless）
@@ -363,23 +500,29 @@ class McpPlaywrightEndpointTest {
 		server.start();
 		String url = "http://localhost:" + server.getAddress().getPort() + "/";
 
-		PlaywrightSession session = new PlaywrightSession(true, 30);
-		PlaywrightTools tools = new PlaywrightTools(session);
+		SharedChromium sharedChromium = new SharedChromium(true, 30);
+		WebSessionRegistry registry = new WebSessionRegistry(sharedChromium, 8, 300, 60);
+		PlaywrightTools tools = new PlaywrightTools(registry);
 		try {
-			System.out.println("[1/4] 导航到本地测试页");
-			System.out.println("      " + tools.browserNavigate(url));
-			System.out.println("[2/4] 捕获可访问性快照");
-			System.out.println("      " + truncate(tools.browserSnapshot(), 400));
-			System.out.println("[3/4] 点击计数按钮");
-			System.out.println("      " + tools.browserClick("#counter", null, null));
-			System.out.println("[4/4] 读取计数结果");
-			String count = tools.browserEvaluate("document.getElementById('counter').textContent");
+			System.out.println("[1/5] 创建浏览器会话");
+			String created = tools.webSession("create", null);
+			System.out.println("      " + created);
+			String sid = created.substring(created.indexOf("sessionId: ") + "sessionId: ".length());
+			System.out.println("[2/5] 导航到本地测试页");
+			System.out.println("      " + tools.browserNavigate(sid, url));
+			System.out.println("[3/5] 捕获可访问性快照");
+			System.out.println("      " + truncate(tools.browserSnapshot(sid), 400));
+			System.out.println("[4/5] 点击计数按钮");
+			System.out.println("      " + tools.browserClick(sid, "#counter", null, null));
+			System.out.println("[5/5] 读取计数结果");
+			String count = tools.browserEvaluate(sid, "document.getElementById('counter').textContent");
 			System.out.println("      计数结果：" + count);
 			boolean ok = count != null && count.contains("count: 1");
 			System.out.println("结论：" + (ok ? "通过（结果合理）" : "未通过（见上方输出）"));
 		}
 		finally {
-			session.destroy();
+			registry.destroy();
+			sharedChromium.destroy();
 			server.stop(0);
 		}
 	}
