@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * GitHub 只读代理 MCP 端点提供者，暴露 {@code /mcp/server/github-readonly}。
+ * GitHub 只读代理 MCP 端点提供者，暴露 {@code /mcp/builtin/github-readonly}。
  *
  * <p>同一上游，但经 {@link #getToolNames()} 固定只读工具清单过滤（ADR-0007 决策 3，不建通用过滤
  * 机制），仅透传只读工具、不透传任何写操作。清单为 github-mcp-server 源码中标记只读
@@ -48,7 +48,7 @@ public class GithubReadonlyMcpProvider extends AbstractGithubMcpProvider {
 
 	@Override
 	public String getPath() {
-		return "/mcp/server/github-readonly";
+		return "/mcp/builtin/github-readonly";
 	}
 
 	@Override

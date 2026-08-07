@@ -22,7 +22,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Bocha 端点集成测试：经 {@code /mcp/server/bocha} 端点验证工具注册与真实调用。
+ * Bocha 端点集成测试：经 {@code /mcp/builtin/bocha} 端点验证工具注册与真实调用。
  *
  * <p>用 JDK 内置 {@link HttpServer} 起一个本地 mock 博查 API，并通过
  * {@code bocha.base-url} 指向它——工具调用不依赖真实 API key 与外部网络，但完整走通
@@ -85,7 +85,7 @@ class McpBochaEndpointTest {
 
 	private McpSyncClient connect() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/mcp/server/bocha")
+			.endpoint("/mcp/builtin/bocha")
 			.build();
 		var client = McpClient.sync(transport).build();
 		client.initialize();

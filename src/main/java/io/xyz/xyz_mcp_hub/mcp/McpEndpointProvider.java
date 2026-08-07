@@ -20,7 +20,7 @@ public interface McpEndpointProvider {
 	String getName();
 
 	/**
-	 * 端点路径，如 {@code /mcp/server/utils}。同一 Hub 内必须唯一。
+	 * 端点路径，如 {@code /mcp/builtin/utils}。同一 Hub 内必须唯一。
 	 */
 	String getPath();
 

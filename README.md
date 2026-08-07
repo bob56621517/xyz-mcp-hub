@@ -64,7 +64,7 @@ java -jar target/xyz-mcp-hub-*.jar
 
 ## Playwright 浏览器自动化端点
 
-`/mcp/server/playwright` 提供原生浏览器自动化（导航、可访问性快照、点击/输入、截图、网络与控制台监听等，按官方 `@playwright/mcp` 工具集实现），无外部 API key。
+`/mcp/builtin/playwright` 提供原生浏览器自动化（导航、可访问性快照、点击/输入、截图、网络与控制台监听等，按官方 `@playwright/mcp` 工具集实现），无外部 API key。
 
 前置：首次使用前安装 chromium 二进制：
 

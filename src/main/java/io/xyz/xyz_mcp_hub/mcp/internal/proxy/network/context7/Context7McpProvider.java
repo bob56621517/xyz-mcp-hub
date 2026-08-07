@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * context7 MCP 端点提供者，暴露 {@code /mcp/server/context7}。
+ * context7 MCP 端点提供者，暴露 {@code /mcp/builtin/context7}。
  *
  * <p>透明代理官方 context7 MCP Server（库文档查询），上游默认
  * {@value #DEFAULT_UPSTREAM_URL}，可经 {@code proxy.context7.upstream-url} 覆盖
@@ -31,7 +31,7 @@ public class Context7McpProvider extends ProxyMcpProvider {
 
 	@Override
 	public String getPath() {
-		return "/mcp/server/context7";
+		return "/mcp/builtin/context7";
 	}
 
 	@Override

@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * Proxy 转发集成测试：内嵌上游 MCP Server（已知工具 echo / fail），经 Hub 的代理端点
- * {@code /mcp/server/test-proxy} 验证 listTools 透传、callTool 透明转发（含 isError）与生命周期释放。
+ * {@code /mcp/builtin/test-proxy} 验证 listTools 透传、callTool 透明转发（含 isError）与生命周期释放。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = XyzMcpHubApplication.class)
 @Import(McpProxyEndpointTest.ProxyEndpointTestConfig.class)
@@ -93,7 +93,7 @@ class McpProxyEndpointTest {
 	@Test
 	@Order(1)
 	void listToolsPassthroughFromUpstream() {
-		client = connect("/mcp/server/test-proxy");
+		client = connect("/mcp/builtin/test-proxy");
 		var tools = client.listTools().tools();
 		assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder("echo", "fail");
 		var echo = tools.stream().filter(tool -> tool.name().equals("echo")).findFirst().orElseThrow();
@@ -104,7 +104,7 @@ class McpProxyEndpointTest {
 	@Test
 	@Order(2)
 	void callToolForwardsToUpstream() {
-		client = connect("/mcp/server/test-proxy");
+		client = connect("/mcp/builtin/test-proxy");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("echo")
 			.arguments(Map.of("message", "你好"))
 			.build());
@@ -116,7 +116,7 @@ class McpProxyEndpointTest {
 	@Test
 	@Order(3)
 	void upstreamErrorPropagatesIsError() {
-		client = connect("/mcp/server/test-proxy");
+		client = connect("/mcp/builtin/test-proxy");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("fail")
 			.arguments(Map.of())
 			.build());
@@ -128,7 +128,7 @@ class McpProxyEndpointTest {
 	@Test
 	@Order(4)
 	void subsetProviderExposesOnlySelectedTools() {
-		client = connect("/mcp/server/test-proxy-subset");
+		client = connect("/mcp/builtin/test-proxy-subset");
 		var tools = client.listTools().tools();
 		assertThat(tools).extracting(McpSchema.Tool::name).containsExactly("echo");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("echo")
@@ -175,7 +175,7 @@ class McpProxyEndpointTest {
 
 		@Override
 		public String getPath() {
-			return "/mcp/server/test-proxy";
+			return "/mcp/builtin/test-proxy";
 		}
 
 		@Override
@@ -208,7 +208,7 @@ class McpProxyEndpointTest {
 
 		@Override
 		public String getPath() {
-			return "/mcp/server/test-proxy-subset";
+			return "/mcp/builtin/test-proxy-subset";
 		}
 
 		@Override

@@ -29,7 +29,7 @@ class McpUtilsEndpointTest {
 
 	private McpSyncClient connect() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/mcp/server/utils")
+			.endpoint("/mcp/builtin/utils")
 			.build();
 		var client = McpClient.sync(transport).build();
 		client.initialize();

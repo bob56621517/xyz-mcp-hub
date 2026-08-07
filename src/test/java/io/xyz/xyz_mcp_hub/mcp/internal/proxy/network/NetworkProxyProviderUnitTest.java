@@ -27,17 +27,17 @@ class NetworkProxyProviderUnitTest {
 	void metadataMatchesPublicContract() {
 		var context7 = new Context7McpProvider("http://localhost:1/mcp");
 		assertThat(context7.getName()).isEqualTo("context7");
-		assertThat(context7.getPath()).isEqualTo("/mcp/server/context7");
+		assertThat(context7.getPath()).isEqualTo("/mcp/builtin/context7");
 		assertThat(context7.getUpstreamUrl()).isEqualTo("http://localhost:1/mcp");
 
 		var grepApp = new GrepAppMcpProvider("http://localhost:1/mcp");
 		assertThat(grepApp.getName()).isEqualTo("grep-app");
-		assertThat(grepApp.getPath()).isEqualTo("/mcp/server/grep-app");
+		assertThat(grepApp.getPath()).isEqualTo("/mcp/builtin/grep-app");
 		assertThat(grepApp.getUpstreamUrl()).isEqualTo("http://localhost:1/mcp");
 
 		var wikidata = new WikidataMcpProvider("http://localhost:1/mcp");
 		assertThat(wikidata.getName()).isEqualTo("wikidata");
-		assertThat(wikidata.getPath()).isEqualTo("/mcp/server/wikidata");
+		assertThat(wikidata.getPath()).isEqualTo("/mcp/builtin/wikidata");
 		assertThat(wikidata.getUpstreamUrl()).isEqualTo("http://localhost:1/mcp");
 	}
 

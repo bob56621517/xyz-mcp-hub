@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * grep.app MCP 端点提供者，暴露 {@code /mcp/server/grep-app}。
+ * grep.app MCP 端点提供者，暴露 {@code /mcp/builtin/grep-app}。
  *
  * <p>透明代理官方 grep.app MCP Server（GitHub 开源代码检索），上游默认
  * {@value #DEFAULT_UPSTREAM_URL}，可经 {@code proxy.grep-app.upstream-url} 覆盖
@@ -37,7 +37,7 @@ public class GrepAppMcpProvider extends ProxyMcpProvider {
 
 	@Override
 	public String getPath() {
-		return "/mcp/server/grep-app";
+		return "/mcp/builtin/grep-app";
 	}
 
 	@Override

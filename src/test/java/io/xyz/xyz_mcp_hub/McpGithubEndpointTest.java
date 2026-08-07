@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * GitHub 代理端点集成测试（mock 联通，见 {@code docs/testing/mcp-service-test-guide.md}）：
  * 内嵌 GitHub 风格上游 MCP Server（只读 get_me / search_issues + 写 create_issue + 错误 fail），
- * 经 Hub 的 {@code /mcp/server/github-full} 与 {@code /mcp/server/github-readonly} 端点验证
+ * 经 Hub 的 {@code /mcp/builtin/github-full} 与 {@code /mcp/builtin/github-readonly} 端点验证
  * listTools 透传、isError 透传、只读清单过滤、搜索/写工具调用、Bearer 认证注入与 isEnabled 门控。
  *
  * <p>无外部依赖：内嵌上游模拟，不触网、不需真实 token。</p>
@@ -102,7 +102,7 @@ class McpGithubEndpointTest {
 
 	@Test
 	void fullProviderExposesAllUpstreamTools() {
-		client = connect("/mcp/server/github-full");
+		client = connect("/mcp/builtin/github-full");
 		var tools = client.listTools().tools();
 		assertThat(tools).extracting(McpSchema.Tool::name)
 			.containsExactlyInAnyOrder("get_me", "search_issues", "create_issue", "fail");
@@ -110,13 +110,13 @@ class McpGithubEndpointTest {
 
 	@Test
 	void fullProviderCanCallWriteTool() {
-		client = connect("/mcp/server/github-full");
+		client = connect("/mcp/builtin/github-full");
 		assertThat(callText(client, "create_issue", Map.of("title", "bug"))).isEqualTo("created issue #123");
 	}
 
 	@Test
 	void fullProviderPropagatesUpstreamError() {
-		client = connect("/mcp/server/github-full");
+		client = connect("/mcp/builtin/github-full");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("fail").arguments(Map.of()).build());
 		assertThat(result.isError()).isTrue();
 		var text = (McpSchema.TextContent) result.content().get(0);
@@ -138,7 +138,7 @@ class McpGithubEndpointTest {
 
 	@Test
 	void readonlyProviderExposesOnlyReadonlyTools() {
-		client = connect("/mcp/server/github-readonly");
+		client = connect("/mcp/builtin/github-readonly");
 		var tools = client.listTools().tools();
 		// 仅暴露固定只读清单内且上游存在的工具，写工具 create_issue 被过滤
 		assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder("get_me", "search_issues");
@@ -146,7 +146,7 @@ class McpGithubEndpointTest {
 
 	@Test
 	void readonlyProviderCallsSearchToolSuccessfully() {
-		client = connect("/mcp/server/github-readonly");
+		client = connect("/mcp/builtin/github-readonly");
 		assertThat(callText(client, "search_issues", Map.of("query", "登录")))
 			.isEqualTo("issue #1: 修复登录");
 	}

@@ -26,7 +26,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Playwright 端点集成测试：连接 {@code /mcp/server/playwright}，用无头 chromium 打开本地
+ * Playwright 端点集成测试：连接 {@code /mcp/builtin/playwright}，用无头 chromium 打开本地
  * 测试页，按 {@code docs/testing/mcp-service-test-guide.md} 对每个 {@code @Tool} 逐个真实
  * 调用并断言结果合理。
  *
@@ -132,7 +132,7 @@ class McpPlaywrightEndpointTest {
 
 	private McpSyncClient connect() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/mcp/server/playwright")
+			.endpoint("/mcp/builtin/playwright")
 			.build();
 		var c = McpClient.sync(transport).build();
 		c.initialize();
