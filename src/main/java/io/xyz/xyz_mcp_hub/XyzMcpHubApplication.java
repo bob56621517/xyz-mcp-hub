@@ -2,8 +2,10 @@ package io.xyz.xyz_mcp_hub;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class XyzMcpHubApplication {
 
 	public static void main(String[] args) {

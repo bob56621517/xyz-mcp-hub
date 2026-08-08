@@ -12,9 +12,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.sun.net.httpserver.HttpServer;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.SharedChromium;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.WebSessionRegistry;
+import io.xyz.xyz_mcp_hub.content.ReadabilityExtractor;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
+import io.xyz.xyz_mcp_hub.playwright.PlaywrightProperties;
+import io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry;
+import io.xyz.xyz_mcp_hub.playwright.internal.SharedChromium;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,8 +65,8 @@ class BrowserFetchServiceTest {
 		staticUrl = "http://localhost:" + port + "/static";
 
 		http = new FetchHttpClient();
-		sharedChromium = new SharedChromium(true, 30);
-		registry = new WebSessionRegistry(sharedChromium, 8, 300, 60);
+		sharedChromium = new SharedChromium(new PlaywrightProperties());
+		registry = new WebSessionRegistry(sharedChromium, new PlaywrightProperties());
 		browserService = new BrowserFetchService(http, registry, new ReadabilityExtractor(),
 				new HtmlToMarkdown(), new PdfTextExtractor(),
 				FetchBrowserFixture::allowLocalhost, new SsrUrlGuard(), 1000);

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 /**
  * Playwright 浏览器自动化原生 MCP 端点提供者，暴露 {@code /mcp/builtin/playwright}。
  *
- * <p>在 Hub JVM 内直接驱动无头 chromium（见 {@link WebSessionRegistry}），工具集见
+ * <p>在 Hub JVM 内直接驱动无头 chromium（见 {@link io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry}），工具集见
  * {@link PlaywrightTools}。无外部凭据，端点始终注册。</p>
  */
 @Component

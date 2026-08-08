@@ -7,8 +7,9 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.PlaywrightTools;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.SharedChromium;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.WebSessionRegistry;
+import io.xyz.xyz_mcp_hub.playwright.PlaywrightProperties;
+import io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry;
+import io.xyz.xyz_mcp_hub.playwright.internal.SharedChromium;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -514,8 +515,8 @@ class McpPlaywrightEndpointTest {
 		server.start();
 		String url = "http://localhost:" + server.getAddress().getPort() + "/";
 
-		SharedChromium sharedChromium = new SharedChromium(true, 30);
-		WebSessionRegistry registry = new WebSessionRegistry(sharedChromium, 8, 300, 60);
+		SharedChromium sharedChromium = new SharedChromium(new PlaywrightProperties());
+		WebSessionRegistry registry = new WebSessionRegistry(sharedChromium, new PlaywrightProperties());
 		PlaywrightTools tools = new PlaywrightTools(registry);
 		try {
 			System.out.println("[1/5] 创建浏览器会话");

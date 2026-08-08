@@ -1,10 +1,10 @@
-package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright;
+package io.xyz.xyz_mcp_hub.playwright;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import io.xyz.xyz_mcp_hub.playwright.internal.SharedChromium;
 import org.springframework.beans.factory.DisposableBean;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -30,15 +30,12 @@ public class WebSessionRegistry implements DisposableBean {
 	private final Thread scanner;
 	private volatile boolean running = true;
 
-	public WebSessionRegistry(
-			SharedChromium sharedChromium,
-			@Value("${playwright.session.max:8}") int maxSessions,
-			@Value("${playwright.session.ttl-seconds:300}") long ttlSeconds,
-			@Value("${playwright.session.scan-interval-seconds:60}") long scanIntervalSeconds) {
+	public WebSessionRegistry(SharedChromium sharedChromium, PlaywrightProperties properties) {
 		this.sharedChromium = sharedChromium;
-		this.maxSessions = maxSessions;
-		this.ttlNanos = ttlSeconds * 1_000_000_000L;
-		this.scanIntervalMillis = Math.max(1, scanIntervalSeconds) * 1000L;
+		PlaywrightProperties.Session sessionProps = properties.getSession();
+		this.maxSessions = sessionProps.getMax();
+		this.ttlNanos = sessionProps.getTtlSeconds() * 1_000_000_000L;
+		this.scanIntervalMillis = Math.max(1, sessionProps.getScanIntervalSeconds()) * 1000L;
 		this.scanner = new Thread(this::scanLoop, "web-session-scanner");
 		this.scanner.setDaemon(true);
 		this.scanner.start();

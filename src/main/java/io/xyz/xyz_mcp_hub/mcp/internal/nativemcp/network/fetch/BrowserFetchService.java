@@ -5,11 +5,12 @@ import java.util.Base64;
 
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Route;
+import io.xyz.xyz_mcp_hub.content.ReadabilityExtractor;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.FetchHttpClient.FetchResponse;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.BrowserSessionHandle;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.WebSessionRegistry;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.SsrGuardException;
+import io.xyz.xyz_mcp_hub.playwright.BrowserSessionHandle;
+import io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
