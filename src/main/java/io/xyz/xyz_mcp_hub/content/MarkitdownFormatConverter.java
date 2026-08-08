@@ -22,8 +22,10 @@ import org.springframework.stereotype.Component;
  * 临时文件，以 {@code file://} URI 调 markitdown 的 {@code convert_to_markdown(uri)} 工具，
  * 返回 Markdown。覆盖 markitdown 支持的全部格式，无独立 MCP 端点（fetch 工具内部使用）。
  *
- * <p>MCP client 懒建立并复用（double-check），连接中断时下次调用重建。转换内容失败
- * （{@code isError}）抛 {@link IllegalStateException}，由调用方（fetch 门面）处理。</p>
+ * <p>MCP client 懒建立并复用（double-check），线程安全（底层 async client 按消息 id
+ * 独立路由），支持多线程并发 {@link #convert}（#16 多 agent 场景）；连接中断或初始化
+ * 失败时关闭旧连接，下次调用重建。转换内容失败（{@code isError}）抛
+ * {@link IllegalStateException}，由调用方（fetch 门面）处理。</p>
  */
 @Component
 @ConditionalOnProperty(prefix = "content.markitdown", name = "enabled", havingValue = "true")
@@ -119,7 +121,14 @@ public class MarkitdownFormatConverter implements FormatConverter, DisposableBea
 				String endpoint = (uri.getPath() == null || uri.getPath().isEmpty()) ? "/mcp" : uri.getPath();
 				var transport = HttpClientStreamableHttpTransport.builder(baseUri).endpoint(endpoint).build();
 				c = McpClient.sync(transport).build();
-				c.initialize();
+				try {
+					c.initialize();
+				}
+				catch (RuntimeException e) {
+					// 初始化失败：关闭半初始化连接，下次调用重建
+					c.closeGracefully();
+					throw new IllegalStateException("连接 markitdown MCP 服务失败：" + server.endpointUrl(), e);
+				}
 				client = c;
 			}
 			return client;

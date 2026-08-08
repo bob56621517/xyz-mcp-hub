@@ -22,7 +22,7 @@ public class MarkitdownSmoke {
 
 	public static void main(String[] args) throws Exception {
 		if (!commandAvailable("uvx")) {
-			System.out.println("[环境] 未找到 uvx（uv），请先安装 uv：https://docs.astral.sh/uv/ 。冒烟退出。");
+			System.out.println("[环境] 未设置，退出：未找到 uvx（uv），请先安装 uv：https://docs.astral.sh/uv/");
 			return;
 		}
 		MarkitdownProperties props = new MarkitdownProperties();

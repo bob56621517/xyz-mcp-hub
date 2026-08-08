@@ -53,28 +53,43 @@ public class MarkitdownServer implements SmartLifecycle, DisposableBean {
 		this.properties = properties;
 	}
 
-	/** markitdown Streamable HTTP 端点（{@code http://127.0.0.1:{port}/mcp}）。 */
+	/**
+	 * markitdown Streamable HTTP 端点（{@code http://127.0.0.1:{port}/mcp/}，带尾斜杠——
+	 * markitdown-mcp 的 {@code /mcp} 会 307 重定向到 {@code /mcp/}，直连尾斜杠端点避免重定向）。
+	 */
 	public String endpointUrl() {
 		return properties.endpointUrl();
 	}
 
 	/**
 	 * 确保 markitdown 已就绪；未启动则拉起并健康检查。已启动幂等返回；
-	 * 启动失败或未启用时抛 {@link IllegalStateException}。
+	 * 启动失败抛 {@link IllegalStateException}（本 JVM 生命周期内不重试）；
+	 * 运行中崩溃则自动重新拉起。
 	 */
 	public void ensureStarted() {
-		if (started) {
+		if (started && isAlive()) {
 			return;
 		}
 		synchronized (lock) {
-			if (started) {
+			if (started && isAlive()) {
 				return;
 			}
 			if (startFailed) {
 				throw new IllegalStateException("markitdown 服务不可用：此前启动失败，请检查 content.markitdown.command 与端口配置后重启应用");
 			}
+			if (started) {
+				// 子进程运行中崩溃：复位状态并重新拉起
+				log.warn("markitdown 子进程已退出，重新拉起");
+				started = false;
+				process = null;
+			}
 			startProcess();
 		}
+	}
+
+	private boolean isAlive() {
+		Process p = process;
+		return p != null && p.isAlive();
 	}
 
 	private void startProcess() {

@@ -6,9 +6,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * markitdown 转换服务配置（前缀 {@code content.markitdown}）。markitdown 以本地子进程 HTTP
  * 服务形式运行（Streamable HTTP，见 issue #25），JVM 侧经 spring-ai MCP client 转发调用。
  *
- * <p>{@code host} 固定 {@code localhost}，属安全硬约束不可配：markitdown 只允许访问本机，
- * 避免暴露为可被外部访问的转换服务。自定义 {@code command} 时须保证其监听端口与
- * {@code port} 一致，否则健康检查与转发连接会失败。</p>
+ * <p>{@code host} 固定 {@code localhost}，属安全硬约束不可配：客户端连接侧固定
+ * {@code 127.0.0.1}，避免暴露为可被外部访问的转换服务。自定义 {@code command} 时除保证
+ * 监听端口与 {@code port} 一致外，亦须保持 {@code --host localhost}，否则会绕过安全约束
+ * 将转换服务暴露到非本机地址。</p>
  */
 @ConfigurationProperties(prefix = "content.markitdown")
 public class MarkitdownProperties {

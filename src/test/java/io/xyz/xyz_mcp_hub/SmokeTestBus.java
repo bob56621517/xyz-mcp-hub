@@ -11,6 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import io.xyz.xyz_mcp_hub.content.MarkitdownSmoke;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
 
 /**
@@ -28,6 +29,7 @@ import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
  * @requires-token BOCHA_API_KEY bocha 冒烟；未设置则跳过
  * @requires-token GITHUB_TOKEN github 冒烟；未设置则跳过
  * @requires-service chromium playwright 冒烟；未安装则跳过
+ * @requires-service markitdown markitdown 转换冒烟；需本机 uvx（未安装则跳过，需 PyPI 可达）
  */
 public class SmokeTestBus {
 
@@ -59,6 +61,11 @@ public class SmokeTestBus {
 				new SmokeTask("fetch", "快路径抓取（HTML/PDF/SSRF 拦截，@requires-web）+ 浏览器路径（engine=browser，JS 渲染/双路径/子资源 SSRF/截图，@requires-service chromium）",
 						() -> callMain(() -> {
 							FetchRealApiSmoke.main(new String[0]);
+							return null;
+						})),
+				new SmokeTask("markitdown", "任意格式→Markdown 转换（自拉 markitdown 子进程 + 健康检查 + 销毁，@requires-service markitdown）",
+						() -> callMain(() -> {
+							MarkitdownSmoke.main(new String[0]);
 							return null;
 						})));
 
