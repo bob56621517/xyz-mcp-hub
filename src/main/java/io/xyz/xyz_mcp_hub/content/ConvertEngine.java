@@ -9,8 +9,9 @@ import org.springframework.stereotype.Component;
  * 内容转换统一入口：{@code convert(bytes, format) → Markdown}。按格式标识调度已注册的
  * {@link FormatConverter}，无匹配实现时抛 {@link UnsupportedFormatException}。
  *
- * <p>当前为调度骨架：markitdown 转换后端在 issue #25 接入，届时各格式实现注册为
- * {@link FormatConverter} bean 即可经此入口转换，fetch 适配层无需感知实现细节。</p>
+ * <p>markitdown 转换后端在 issue #25 接入：{@code content.markitdown.enabled=true} 时
+ * {@link MarkitdownFormatConverter} 注册为 {@link FormatConverter} bean，经此入口转换
+ * 任意格式 bytes → Markdown，fetch 适配层无需感知实现细节。</p>
  */
 @Component
 public class ConvertEngine {

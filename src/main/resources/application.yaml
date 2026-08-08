@@ -46,6 +46,17 @@ fetch:
   browser:
     wait-after-load-ms: 1000
 
+content:
+  markitdown:
+    # 任意格式→Markdown 转换后端（见 issue #25）：本地子进程 HTTP 服务，JVM 经 MCP client 转发调用。
+    # host 固定 localhost（安全硬约束，不可配）；port 服务监听端口（默认 3001），自定义 command 时须
+    # 保证其监听端口与此一致；enabled=false 时不拉起子进程、不注册转换能力；autoStart=true（默认）
+    # 应用启动即拉起，false 首次转换调用时懒启动。
+    enabled: true
+    autoStart: true
+    port: 3001
+    command: uvx --with mcp<2.0.0 markitdown-mcp --http --port 3001 --host localhost
+
 # 配置驱动的组合端点 Space（见 ADR-0008）：从已注册端点引用工具聚合为独立端点。
 # 在此声明 mcp.spaces 即启用，schema 与示例见 docs/adr/0008-composed-space-config.md：
 #   mcp:
