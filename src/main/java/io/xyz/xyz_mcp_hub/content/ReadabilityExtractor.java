@@ -1,4 +1,4 @@
-package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch;
+package io.xyz.xyz_mcp_hub.content;
 
 import java.io.IOException;
 import java.io.InputStream;

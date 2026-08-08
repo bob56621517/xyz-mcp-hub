@@ -1,4 +1,4 @@
-package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright;
+package io.xyz.xyz_mcp_hub.playwright.internal;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -8,8 +8,8 @@ import java.util.Comparator;
 import java.util.List;
 
 import com.microsoft.playwright.Playwright;
+import io.xyz.xyz_mcp_hub.playwright.PlaywrightProperties;
 import org.springframework.beans.factory.DisposableBean;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -34,11 +34,9 @@ public class SharedChromium implements DisposableBean {
 	private volatile Process process;
 	private volatile Path userDataDir;
 
-	public SharedChromium(
-			@Value("${playwright.headless:true}") boolean headless,
-			@Value("${playwright.navigation-timeout-seconds:30}") double navigationTimeoutSeconds) {
-		this.headless = headless;
-		this.navigationTimeoutSeconds = navigationTimeoutSeconds;
+	public SharedChromium(PlaywrightProperties properties) {
+		this.headless = properties.isHeadless();
+		this.navigationTimeoutSeconds = properties.getNavigationTimeoutSeconds();
 	}
 
 	private synchronized void start() {

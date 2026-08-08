@@ -5,15 +5,16 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.sun.net.httpserver.HttpServer;
+import io.xyz.xyz_mcp_hub.content.ReadabilityExtractor;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.BrowserFetchService;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.FetchBrowserFixture;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.FetchHttpClient;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.FetchService;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.HtmlToMarkdown;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.PdfTextExtractor;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.ReadabilityExtractor;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.SharedChromium;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.WebSessionRegistry;
+import io.xyz.xyz_mcp_hub.playwright.PlaywrightProperties;
+import io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry;
+import io.xyz.xyz_mcp_hub.playwright.internal.SharedChromium;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.SsrGuardException;
 
@@ -96,8 +97,8 @@ public class FetchRealApiSmoke {
 			localServer.start();
 			String jsUrl = "http://localhost:" + localServer.getAddress().getPort() + "/";
 
-			chromium = new SharedChromium(true, 30);
-			registry = new WebSessionRegistry(chromium, 8, 300, 60);
+			chromium = new SharedChromium(new PlaywrightProperties());
+			registry = new WebSessionRegistry(chromium, new PlaywrightProperties());
 			BrowserFetchService browserService = new BrowserFetchService(http, registry,
 					new ReadabilityExtractor(), htmlToMarkdown, pdfTextExtractor,
 					FetchBrowserFixture::allowLocalhost, new SsrUrlGuard(), 1000);

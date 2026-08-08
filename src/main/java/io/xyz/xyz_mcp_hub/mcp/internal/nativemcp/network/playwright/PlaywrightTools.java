@@ -6,6 +6,8 @@ import java.util.Map;
 import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.KeyboardModifier;
 import com.microsoft.playwright.options.MouseButton;
+import io.xyz.xyz_mcp_hub.playwright.BrowserSessionHandle;
+import io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;

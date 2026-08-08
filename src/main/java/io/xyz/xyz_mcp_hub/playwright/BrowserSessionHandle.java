@@ -1,4 +1,4 @@
-package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright;
+package io.xyz.xyz_mcp_hub.playwright;
 
 import java.util.LinkedHashMap;
 import java.util.List;
