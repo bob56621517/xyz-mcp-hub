@@ -36,30 +36,30 @@ Tool 是 MCP 协议中的最小功能单元。早期阶段，Tool 由开发者�
 
 ```
 xyz-mcp-hub/
-├── src/main/java/io/xyz/mcphub/
-│   ├── tool/          ← 工具定义的领域逻辑
-│   ├── space/         ← 空间管理的领域逻辑
-│   ├── mcp/           ← MCP 协议端点
-│   ├── ui/            ← Vaadin 管理界面
-│   └── shared/        ← 基础设施
-├── src/main/resources/
-│   └── application.yaml
-├── src/test/
+├── pom.xml          ← 根聚合（多模块 Maven，ADR-0012）
+├── hub/             ← 核心 JVM 模块：标准 Spring Boot 应用（java -jar 直启，不进 docker）
+│   └── src/
+├── sidecars/        ← 多语言薄 MCP 封装层骨架（目标 = Dockerfile/镜像，见 #31）
+│   ├── markitdown/
+│   └── playwright/
+├── manifests/       ← mvn 生成的运行规范（mcp-images.yaml，见 #31）
 ├── docs/
 │   └── adr/           ← 架构决策记录（按需创建）
-├── CONTEXT.md          ← 领域词汇表（按需创建）
-└── pom.xml
+└── CONTEXT.md          ← 领域词汇表（按需创建）
 ```
 
 ## 构建与运行
 
 ```bash
-# 开发模式
-./mvnw spring-boot:run
+# 根目录测试（聚合 hub + sidecars，约定跳过 Vaadin 前端构建）
+./mvnw test -Dvaadin.skip=true
 
-# 打包 fatjar
-./mvnw package
-java -jar target/xyz-mcp-hub-*.jar
+# 打包 hub fatjar
+./mvnw -pl hub package -Dvaadin.skip=true
+java -jar hub/target/hub-*.jar
+
+# 开发模式（在 hub 模块）
+./mvnw -pl hub spring-boot:run -Dvaadin.skip=true
 ```
 
 ## Playwright 浏览器自动化端点
@@ -69,7 +69,7 @@ java -jar target/xyz-mcp-hub-*.jar
 前置：首次使用前安装 chromium 二进制：
 
 ```bash
-./mvnw exec:java -Dvaadin.skip=true -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install chromium"
+./mvnw -pl hub exec:java -Dvaadin.skip=true -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install chromium"
 ```
 
 浏览器会话懒启动，首次工具调用时拉起无头 chromium；无头与否可通过 `playwright.headless` 属性配置（默认 true）。
