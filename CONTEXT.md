@@ -63,6 +63,19 @@
 | 值守模式 | Supervised | 用户在场：每任务合并/关闭前停下等明确授权；子代理提问当场转述、等答复 |
 | 无人值守 | Unattended | 仅在用户明说会走开时启用：按常设授权自动合入，跑不完的做交接，问题只转述不等待 |
 
+### 任务执行（run_task_with_nobody 技能词汇）
+
+| 术语 | 英文 | 定义 |
+|---|---|---|
+| work 分支 | Work branch | 启动时从 main 建 `work/<父议题>-<NN>` 并 push；所有子代理提交带 `#N:` 前缀落于此；合入 main 由用户执行 |
+| 保绿 | Stay-green | work 分支永远绿，每次 push 都是绿的；失败工作只留本地暂存不推送 |
+| 跳过 | Skip | 子代理结局的兜底：🚦 需决策或无法推进一律本地暂存 + work 分支回滚 + 继续下一个不依赖它的任务 |
+| 暂存分支 | Staging branch | 本地 `wip/issue-N`，保存失败/半成品工作；只存本地不推远端，名 + sha 记入 🚦/🚫 评论 |
+| 等决策 | Awaiting decision | `ready-for-human` + `🚦` 评论（问题 + 暂存分支名 + sha）；人类答复后重启该任务，复用暂存分支 |
+| 薄 primary | Thin primary | primary 只建 work 分支、算前沿、派一个子代理、收薄回报、判成功/跳过、写交接；执行全在子代理 |
+
+注：`run_task_with_nobody`（ADR-0014）与 `run-tasks`（ADR-0013）并存。前者的无人值守**结构上不碰 main**（合入 main 由用户执行）；后者的无人值守按常设授权**自动合入 main**。
+
 ### 未来规划
 
 | 术语 | 英文 | 定义 |
