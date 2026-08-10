@@ -26,10 +26,11 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * GitHub 代理端点集成测试（mock 联通，见 {@code docs/testing/mcp-service-test-guide.md}）：
+ * GitHub 代理源集成测试（mock 联通，见 {@code docs/testing/mcp-service-test-guide.md}；#39 迁移：
+ * 旧多端点已移除，改经单端点 {@code /xyz-hub/mcp?includes=[github-full|github-readonly]} 暴露，
+ * 工具名带 {@code github_full_}/{@code github_readonly_} 前缀）：
  * 内嵌 GitHub 风格上游 MCP Server（只读 get_me / search_issues + 写 create_issue + 错误 fail），
- * 经 Hub 的 {@code /mcp/builtin/github-full} 与 {@code /mcp/builtin/github-readonly} 端点验证
- * listTools 透传、isError 透传、只读清单过滤、搜索/写工具调用、Bearer 认证注入与 isEnabled 门控。
+ * 验证 listTools 透传、isError 透传、只读清单过滤、搜索/写工具调用、Bearer 认证注入与 isEnabled 门控。
  *
  * <p>无外部依赖：内嵌上游模拟，不触网、不需真实 token。</p>
  */
@@ -102,22 +103,24 @@ class McpGithubEndpointTest {
 
 	@Test
 	void fullProviderExposesAllUpstreamTools() {
-		client = connect("/mcp/builtin/github-full");
+		client = connect("/xyz-hub/mcp?includes=[github-full]");
 		var tools = client.listTools().tools();
 		assertThat(tools).extracting(McpSchema.Tool::name)
-			.containsExactlyInAnyOrder("get_me", "search_issues", "create_issue", "fail");
+			.containsExactlyInAnyOrder("github_full_get_me", "github_full_search_issues",
+					"github_full_create_issue", "github_full_fail");
 	}
 
 	@Test
 	void fullProviderCanCallWriteTool() {
-		client = connect("/mcp/builtin/github-full");
-		assertThat(callText(client, "create_issue", Map.of("title", "bug"))).isEqualTo("created issue #123");
+		client = connect("/xyz-hub/mcp?includes=[github-full]");
+		assertThat(callText(client, "github_full_create_issue", Map.of("title", "bug")))
+			.isEqualTo("created issue #123");
 	}
 
 	@Test
 	void fullProviderPropagatesUpstreamError() {
-		client = connect("/mcp/builtin/github-full");
-		var result = client.callTool(McpSchema.CallToolRequest.builder("fail").arguments(Map.of()).build());
+		client = connect("/xyz-hub/mcp?includes=[github-full]");
+		var result = client.callTool(McpSchema.CallToolRequest.builder("github_full_fail").arguments(Map.of()).build());
 		assertThat(result.isError()).isTrue();
 		var text = (McpSchema.TextContent) result.content().get(0);
 		assertThat(text.text()).isEqualTo("上游模拟失败");
@@ -138,16 +141,17 @@ class McpGithubEndpointTest {
 
 	@Test
 	void readonlyProviderExposesOnlyReadonlyTools() {
-		client = connect("/mcp/builtin/github-readonly");
+		client = connect("/xyz-hub/mcp?includes=[github-readonly]");
 		var tools = client.listTools().tools();
 		// 仅暴露固定只读清单内且上游存在的工具，写工具 create_issue 被过滤
-		assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder("get_me", "search_issues");
+		assertThat(tools).extracting(McpSchema.Tool::name)
+			.containsExactlyInAnyOrder("github_readonly_get_me", "github_readonly_search_issues");
 	}
 
 	@Test
 	void readonlyProviderCallsSearchToolSuccessfully() {
-		client = connect("/mcp/builtin/github-readonly");
-		assertThat(callText(client, "search_issues", Map.of("query", "登录")))
+		client = connect("/xyz-hub/mcp?includes=[github-readonly]");
+		assertThat(callText(client, "github_readonly_search_issues", Map.of("query", "登录")))
 			.isEqualTo("issue #1: 修复登录");
 	}
 

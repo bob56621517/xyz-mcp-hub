@@ -39,11 +39,6 @@ class CompositeSourceRegistryTest {
 		}
 
 		@Override
-		public String getPath() {
-			return "/mcp/builtin/alpha";
-		}
-
-		@Override
 		public List<ToolCallback> getTools() {
 			return tools;
 		}
@@ -66,11 +61,6 @@ class CompositeSourceRegistryTest {
 		}
 
 		@Override
-		public String getPath() {
-			return "/mcp/builtin/beta";
-		}
-
-		@Override
 		public List<ToolCallback> getTools() {
 			return tools;
 		}
@@ -89,11 +79,6 @@ class CompositeSourceRegistryTest {
 		@Override
 		public String getName() {
 			return "hosty";
-		}
-
-		@Override
-		public String getPath() {
-			return "/mcp/builtin/hosty";
 		}
 
 		@Override

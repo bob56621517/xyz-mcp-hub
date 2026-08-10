@@ -10,10 +10,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 博查搜索原生 MCP 端点提供者，暴露 {@code /mcp/builtin/bocha}。
+ * 博查搜索原生 MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[bocha]} 暴露）。
  *
  * <p>原生实现博查搜索：直接调用博查 Web Search / AI Search HTTP API，工具见 {@link BochaTools}。
- * 缺少 {@code bocha.api-key} 时端点不注册（见 ADR-0005）。</p>
+ * 缺少 {@code bocha.api-key} 时源不注册（见 ADR-0005）。</p>
  */
 @Component
 public class BochaMcpProvider extends NativeMcp {
@@ -36,11 +36,6 @@ public class BochaMcpProvider extends NativeMcp {
 	@Override
 	public String getName() {
 		return "bocha";
-	}
-
-	@Override
-	public String getPath() {
-		return "/mcp/builtin/bocha";
 	}
 
 	@Override

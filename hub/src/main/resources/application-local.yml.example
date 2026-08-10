@@ -2,10 +2,10 @@
 #
 # 复制为 application-local.yml（.gitignore 排除，不入库）后填入真实值；
 # 或将同名环境变量注入。所有 key 均为全大写、下划线分隔（如 BOCHA_API_KEY）。
-# 缺省值导致对应 MCP 端点不注册（见 ADR-0005）。
+# 缺省值导致对应 MCP 源不注册（见 ADR-0005；工具经单端点 /xyz-hub/mcp?includes=[源名] 暴露）。
 
-# 博查搜索 API key（必填才注册 /mcp/builtin/bocha）
+# 博查搜索 API key（必填才注册 bocha 源）
 BOCHA_API_KEY:
 
-# GitHub MCP 认证 token（Personal Access Token，必填才注册 /mcp/builtin/github-full 与 /mcp/builtin/github-readonly）
+# GitHub MCP 认证 token（Personal Access Token，必填才注册 github-full 与 github-readonly 源）
 GITHUB_TOKEN:

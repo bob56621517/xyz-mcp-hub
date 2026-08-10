@@ -32,11 +32,6 @@ public class PlaywrightMcpProvider extends HostMcp {
 	}
 
 	@Override
-	public String getPath() {
-		return "/mcp/builtin/playwright";
-	}
-
-	@Override
 	public List<ToolCallback> getTools() {
 		return tools;
 	}

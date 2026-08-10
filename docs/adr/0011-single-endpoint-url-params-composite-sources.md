@@ -45,7 +45,7 @@ MCP 的 Streamable HTTP 端点 URL **原生支持 query param**——工具选�
 - YAML 定义（`mcp.specs`），**发布成一个新源入目录**，与任何普通源同等被 `includes` 引用；URL 无关。
 - 可引用多个源、支持 `includes`/`excludes`（含精确到工具）；**启动时静态解析、可嵌套、发布时循环检测**；动态性只来自 URL 过滤。
 - 例：`github-readonly` = `{includes: [github], excludes: [github_create_issue, ...]}`。
-- 旧 Space 组合端点（独立 URL 命名空间）退役；`SpaceDefinition`/`SpaceSource` VO 保留、`path` 字段退役。
+- 旧 Space 组合端点（独立 URL 命名空间）退役；组合能力由 `mcp.specs` 承担。#39 实现时连同 `SpaceDefinition`/`SpaceSource`/`SpaceDefinitionSource` VO/SPI 一并删除——组合能力已由 specs 完全取代，保留死 VO 属「残留引用」。
 
 ### 目录 API
 
@@ -59,6 +59,7 @@ MCP 的 Streamable HTTP 端点 URL **原生支持 query param**——工具选�
 
 - 旧 `/mcp/builtin/*`、`/mcp/server/*`、`/mcp/config/*` 端点**干净断掉**（彻底重构，无兼容性保证）。所有工具由 `/xyz-hub/mcp?includes=` 暴露。
 - `HubMcpRegistrar` 从「每 provider 一个 McpServer」重构成「单 McpServer + 源注册表 + 每请求/会话工具视图」。
+- **（#39 已实现）**：旧多端点机制（`HubMcpRegistrar`）与 Space 组合端点实现整体删除，旧路径 HTTP 404、无重定向；`McpEndpointProvider#getPath()` 一并移除。仅剩 `/xyz-hub/mcp` + `/xyz-hub/sse` + `/xyz-hub/catalog`。
 
 ## 后果
 

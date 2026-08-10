@@ -51,11 +51,6 @@ public class MarkitdownContainerMcp extends ContainerMcp {
 	}
 
 	@Override
-	public String getPath() {
-		return "/mcp/builtin/containermcp/markitdown";
-	}
-
-	@Override
 	protected Protocol protocol() {
 		return Protocol.MCP;
 	}

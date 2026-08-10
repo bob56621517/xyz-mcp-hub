@@ -1,6 +1,6 @@
 # xyz-mcp-hub
 
-一个基于 Spring Boot 的 MCP（Model Context Protocol）工具聚合服务。为本地 Agent CLI 提供按空间（Space）分组的、可按需注册的 MCP 工具——解决 MCP 工具全量注册导致的 Token 浪费问题。
+一个基于 Spring Boot 的 MCP（Model Context Protocol）工具聚合服务。对外暴露统一的单端点（`/xyz-hub/mcp`，Streamable HTTP + SSE），内部以「源」（Source）聚合四类 MCP 工具（Native / Proxy / Container / Host），工具子集由连接 URL 参数（`includes`/`excludes`）在运行时选择——解决 MCP 工具全量注册导致的 Token 浪费问题。
 
 ## 项目愿景
 
@@ -24,13 +24,13 @@
 
 ## 核心概念
 
-### Space（空间）
+### 源（Source）
 
-Space 是工具的命名分组单元。用户创建一个 Space，获得唯一 UUID 标识，在此 Space 内声明需要暴露的工具。Agent CLI 通过 `localhost:8080/mcp/{uuid}` 连接特定 Space，只注册该 Space 内的工具——按需使用，节约 Token。
+源是目录里一个可被 `includes`/`excludes` 引用的工具组（一个 `McpEndpointProvider` 实例，native / proxy / container / host / composite 五类）。Agent CLI 连接单端点 `/xyz-hub/mcp?includes=[源名]`，只暴露所选源的工具视图——按需使用，节约 Token。
 
 ### Tool（工具）
 
-Tool 是 MCP 协议中的最小功能单元。早期阶段，Tool 由开发者在 Java 代码中实现，通过 UI 或 API 将 Tool 分配到一个或多个 Space 中暴露出去。
+Tool 是 MCP 协议中的最小功能单元，工具名统一加 `{source}_` 前缀保证跨源全局唯一。连接 URL 的 `includes`/`excludes` 参数（源名或工具名，下划线平坦名）在运行时选择工具视图；无参数 = 全量。
 
 ## 项目结构
 

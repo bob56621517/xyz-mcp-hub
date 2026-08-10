@@ -90,7 +90,7 @@
 
 详见 `docs/adr/`：
 
-- `docs/adr/0001-multi-mcp-server-endpoints.md` — 绕过 Spring AI 自动配置，手动多端点
+- `docs/adr/0001-multi-mcp-server-endpoints.md` — 绕过 Spring AI 自动配置，手动多端点（**已被 ADR-0011 取代**：旧多端点代码已移除，issue #39）
 - `docs/adr/0002-single-module-jpms.md` — 单 Maven 模块 + JPMS 模块化
 - `docs/adr/0003-native-vs-proxy-mcp.md` — **已被 ADR-0009 取代**（NativeMcp 为主 → 四类 MCP + 薄实现）
 - `docs/adr/0004-spring-modulith-verification.md` — 使用 Spring Modulith 验证模块结构
@@ -117,12 +117,11 @@ xyz-mcp-hub/
 │       │   ├── Scope.java                      ← HOST / NETWORK
 │       │   └── package-info.java               ← @NamedInterface("api")
 │       ├── mcp.internal                        ← 以下全部不对外
-│       │   ├── HubMcpRegistrar.java            ← 单端点 McpServer + 按 URL 参数构建工具视图
+│       │   ├── single                          ← 单端点 McpServer + 源注册表 + URL 参数工具视图 + 目录 API + 组合源（ADR-0011，#30~#39）
 │       │   ├── nativemcp                       ← NativeMcp（bocha / utils，薄实现）
 │       │   ├── proxy                           ← ProxyMcp（公有云转发，启动时发现工具）
 │       │   ├── containermcp                    ← ContainerMcp（读 manifest，按需拉起容器）
-│       │   ├── hostmcp                         ← HostMcp（文件/IM/playwright 交互）
-│       │   └── space                           ← 组合源（specs YAML 注册）
+│       │   └── hostmcp                         ← HostMcp（文件/IM/playwright 交互）
 │       ├── docker                              ← 顶级工具模块：容器生命周期管理（与 playwright 同级）
 │       ├── playwright                          ← 顶级工具模块：HostMcp 浏览器引擎（保留）
 │       ├── security                            ← SsrUrlGuard 等共享安全组件
@@ -136,7 +135,7 @@ xyz-mcp-hub/
 └── docs/adr/
 ```
 
-**说明**：`content` 顶级模块已整体退役（旧内容转换引擎，见 ADR-0009）；`fetch` 门面已砍，网页/PDF 直接用 jina。`(JPMS module-info.java 仍暂缓，见 issue #3)`
+**说明**：`content` 顶级模块已整体退役（旧内容转换引擎，见 ADR-0009）；`fetch` 门面已砍，网页/PDF 直接用 jina。旧多端点（`/mcp/builtin/*`、`/mcp/server/*`、`/mcp/config/*`）与 Space 组合端点已整体移除（issue #39，干净断掉无重定向），仅剩单端点 `/xyz-hub/mcp` + `/xyz-hub/sse` + 目录 `/xyz-hub/catalog`。`(JPMS module-info.java 仍暂缓，见 issue #3)`
 
 ---
 

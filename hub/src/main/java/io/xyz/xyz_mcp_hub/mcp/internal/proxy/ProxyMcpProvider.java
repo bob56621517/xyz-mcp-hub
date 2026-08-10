@@ -19,8 +19,7 @@ import reactor.core.publisher.Mono;
  * 代理 MCP 服务基类：Hub 作为 MCP Client 透明代理远程公有云 MCP Server。
  *
  * <p>仅支持远程 HTTP（Streamable HTTP）传输（见 ADR-0007），永不用 stdio 子进程。
- * 子类需提供上游完整端点 URL 与可选认证 header（敏感值经 Spring 配置注入）。旧多端点由
- * {@code HubMcpRegistrar} 调用 {@link #connect()} 拉取工具列表原样透传；#35 起单端点源注册表经
+ * 子类需提供上游完整端点 URL 与可选认证 header（敏感值经 Spring 配置注入）。单端点源注册表经
  * {@link #discoverTools()} 启动时发现工具并缓存，callTool 时透明转发、响应原样返回；关闭时经
  * {@link McpSyncClient#closeGracefully()} 释放。</p>
  */
@@ -38,7 +37,7 @@ public abstract class ProxyMcpProvider implements McpEndpointProvider {
 
 	/**
 	 * 上游远程 MCP Server 的完整端点 URL（Streamable HTTP），如
-	 * {@code https://api.example.com/mcp/server/foo}。
+	 * {@code https://mcp.example.com/mcp}。
 	 */
 	public abstract String getUpstreamUrl();
 
