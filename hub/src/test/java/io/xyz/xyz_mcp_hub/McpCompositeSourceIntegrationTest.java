@@ -158,8 +158,9 @@ class McpCompositeSourceIntegrationTest {
 		client = connect("/xyz-hub/mcp?excludes=[readonly]");
 		List<String> names = toolNames();
 		// readonly = bocha+utils 减 bocha_ai_search，故全量减 readonly 后 bocha_ai_search 仍在
+		// （#38 fetch 门面已退役，全量不再含 fetch_fetch）
 		assertThat(names).doesNotContain("bocha_web_search", "utils_currentDateTime");
-		assertThat(names).contains("bocha_ai_search", "fetch_fetch");
+		assertThat(names).contains("bocha_ai_search");
 	}
 
 	@Test
