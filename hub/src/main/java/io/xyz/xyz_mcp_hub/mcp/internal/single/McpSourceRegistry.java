@@ -11,7 +11,10 @@ import java.util.stream.Collectors;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.xyz.xyz_mcp_hub.docker.Protocol;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
+import io.xyz.xyz_mcp_hub.mcp.Scope;
+import io.xyz.xyz_mcp_hub.mcp.SourceType;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.NativeMcp;
 import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ProxyMcpProvider;
 import org.slf4j.Logger;
@@ -31,6 +34,9 @@ import org.springframework.ai.tool.ToolCallback;
  * <p>源降级（沿用 {@link McpEndpointProvider#isEnabled()} 语义）：proxy 上游不可达（连接/握手/
  * listTools 失败）时该源不入注册表、应用照常启动，不拖垮启动（#35）。</p>
  *
+ * <p>每个源携带目录元数据（{@link McpSource}：type / protocol / scope / base，issue #34），供目录
+ * API（{@link CatalogEndpoint}）读取；proxy / container 源迁入后目录自动增长。</p>
+ *
  * <p>解析规则（与 ADR-0011 完全一致）：先精确匹配工具名，再按源名展开该源全部工具；未知项静默
  * 忽略 + 日志 warn；无参数 = 全量。</p>
  */
@@ -38,9 +44,25 @@ public class McpSourceRegistry {
 
 	private static final Logger log = LoggerFactory.getLogger(McpSourceRegistry.class);
 
-	/** 单个源：源名 + 底层 provider + 带前缀的工具规格。 */
-	public record McpSource(String name, McpEndpointProvider provider,
-			List<McpServerFeatures.AsyncToolSpecification> specs) {
+	/**
+	 * 单个源：源名 + 目录元数据（type/protocol/scope/base，ADR-0011）+ 底层 provider + 带前缀的工具规格。
+	 *
+	 * <p>元数据模型（#34）为 #35/#36/#37 共用、一次定稿：{@code type} 由 provider 声明
+	 * （{@link McpEndpointProvider#getSourceType()}）；{@code protocol} 为 container 专有（mcp|rest，
+	 * 非容器源为 null）；{@code scope} 取 provider 部署范围；{@code base} 为组合源溯源（#33 组合源
+	 * 构建器合入后填充，非组合源为 null）。</p>
+	 *
+	 * @param name 源名（URL includes/excludes 引用单元）
+	 * @param type 源类型（native/proxy/container/host/composite）
+	 * @param protocol 容器接入协议（container 专有，其余为 null）
+	 * @param scope 部署范围（host/network）
+	 * @param provider 底层端点提供者
+	 * @param specs 带 {@code {source}_} 前缀的工具规格（全量注册）
+	 * @param base 组合源溯源（非组合源为 null，#33 后填充）
+	 */
+	public record McpSource(String name, SourceType type, Protocol protocol, Scope scope,
+			McpEndpointProvider provider, List<McpServerFeatures.AsyncToolSpecification> specs,
+			CompositeBase base) {
 	}
 
 	private final List<McpSource> sources;
@@ -164,7 +186,7 @@ public class McpSourceRegistry {
 			.forEach(ProxyMcpProvider::close);
 	}
 
-	/** 把一个 provider 化为 source：工具名加 {@code {source}_} 前缀。proxy 源启动时向上游发现工具。 */
+	/** 把一个 provider 化为 source：工具名加 {@code {source}_} 前缀；目录元数据取自 provider 声明。 */
 	private McpSource toSource(McpEndpointProvider provider) {
 		String sourceName = provider.getName();
 		if (provider instanceof ProxyMcpProvider proxy) {
@@ -174,19 +196,22 @@ public class McpSourceRegistry {
 		List<McpServerFeatures.AsyncToolSpecification> specs = provider.getTools().stream()
 			.map(toolCallback -> toPrefixedSpec(sourceName, toolCallback))
 			.toList();
-		return new McpSource(sourceName, provider, specs);
+		// #34 目录元数据：type 由 provider 声明；protocol 仅容器源有（本期无容器源，恒 null）；
+		// scope 取 provider 部署范围；base 为组合源溯源（#33 后填充，本期恒 null）
+		return new McpSource(sourceName, provider.getSourceType(), null, provider.getScope(), provider, specs, null);
 	}
 
 	/**
-	 * proxy 源：启动时向上游 {@code listTools} 发现工具并缓存，工具名加 {@code {source}_} 前缀。
-	 * 上游不可达时返回 {@code null}（源降级：不入注册表、不拖垮启动，沿用 {@code isEnabled()} 语义）。
+	 * proxy 源：启动时向上游 {@code listTools} 发现工具并缓存，工具名加 {@code {source}_} 前缀；
+	 * 目录元数据与原生源一致取 provider 声明（type=PROXY，见 #34/#35）。上游不可达时返回
+	 * {@code null}（源降级：不入注册表、不拖垮启动，沿用 {@code isEnabled()} 语义）。
 	 */
 	private McpSource toProxySource(String sourceName, ProxyMcpProvider proxy) {
 		try {
 			List<McpServerFeatures.AsyncToolSpecification> specs = proxy.discoverTools().stream()
 				.map(spec -> renamePrefixed(sourceName, spec))
 				.toList();
-			return new McpSource(sourceName, proxy, specs);
+			return new McpSource(sourceName, proxy.getSourceType(), null, proxy.getScope(), proxy, specs, null);
 		}
 		catch (RuntimeException e) {
 			log.error("proxy 源 {} 启动发现失败，源降级（不入注册表）: {}", sourceName, e.getMessage());

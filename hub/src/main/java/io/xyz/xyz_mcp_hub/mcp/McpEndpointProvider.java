@@ -30,6 +30,17 @@ public interface McpEndpointProvider {
 	Scope getScope();
 
 	/**
+	 * 源类型（目录 API 元数据，ADR-0011 / issue #34）：native / proxy / container / host / composite。
+	 *
+	 * <p>默认 {@link SourceType#NATIVE}；{@code HostMcp} 覆盖为 {@link SourceType#HOST}，未来的
+	 * ProxyMcp / ContainerMcp 各自覆盖。组合源（specs 发布）不实现本接口，由组合源构建器（#33）
+	 * 直接以 {@link SourceType#COMPOSITE} 建源。</p>
+	 */
+	default SourceType getSourceType() {
+		return SourceType.NATIVE;
+	}
+
+	/**
 	 * 该端点暴露的工具列表。可通过 {@code MethodToolCallbackProvider} 从 {@code @Tool} 注解方法构建。
 	 *
 	 * <p>{@code NativeMcp} 子类必须实现；{@code ProxyMcpProvider} 不实现——其工具由

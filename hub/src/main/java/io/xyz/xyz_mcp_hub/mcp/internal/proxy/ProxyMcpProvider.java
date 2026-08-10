@@ -12,6 +12,7 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
+import io.xyz.xyz_mcp_hub.mcp.SourceType;
 import reactor.core.publisher.Mono;
 
 /**
@@ -28,6 +29,11 @@ public abstract class ProxyMcpProvider implements McpEndpointProvider {
 	@Override
 	public final Scope getScope() {
 		return Scope.NETWORK;
+	}
+
+	@Override
+	public final SourceType getSourceType() {
+		return SourceType.PROXY;
 	}
 
 	/**
