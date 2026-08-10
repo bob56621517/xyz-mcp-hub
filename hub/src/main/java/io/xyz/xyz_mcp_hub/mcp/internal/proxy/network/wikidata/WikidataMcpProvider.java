@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class WikidataMcpProvider extends ProxyMcpProvider {
 
-	/** Wikidata 官方 Streamable HTTP 端点（交接文档 PARALLEL-HANDOFF.md）。 */
+	/** Wikidata 官方 Streamable HTTP 端点。 */
 	public static final String DEFAULT_UPSTREAM_URL = "https://wd-mcp.wmcloud.org/mcp";
 
 	private final String upstreamUrl;

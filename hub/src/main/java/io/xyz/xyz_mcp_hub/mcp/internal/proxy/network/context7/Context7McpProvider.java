@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class Context7McpProvider extends ProxyMcpProvider {
 
-	/** context7 官方 Streamable HTTP 端点（交接文档 PARALLEL-HANDOFF.md）。 */
+	/** context7 官方 Streamable HTTP 端点。 */
 	public static final String DEFAULT_UPSTREAM_URL = "https://mcp.context7.com/mcp";
 
 	private final String upstreamUrl;

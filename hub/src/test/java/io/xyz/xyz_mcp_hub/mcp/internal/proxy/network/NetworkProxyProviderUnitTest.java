@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 公共 Proxy 提供者单元测试：守护默认上游 URL 与端点元数据（PARALLEL-HANDOFF.md）。
+ * 公共 Proxy 提供者单元测试：守护默认上游 URL 与端点元数据。
  * 不加载 Spring 上下文，构造注入任意 URL 验证 getter 行为。
  *
  * <p>无外部依赖：纯内存单元测试，不发起网络请求。</p>

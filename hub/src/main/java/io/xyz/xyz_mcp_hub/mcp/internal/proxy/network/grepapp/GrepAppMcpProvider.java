@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 public class GrepAppMcpProvider extends ProxyMcpProvider {
 
 	/**
-	 * grep.app 官方 Streamable HTTP 端点（交接文档 PARALLEL-HANDOFF.md）。
+	 * grep.app 官方 Streamable HTTP 端点。
 	 *
 	 * <p>注意尾斜杠：grep.app 真实 MCP 端点位于根路径，{@code /mcp} 返回
 	 * {@code Invalid MCP endpoint}；{@link ProxyMcpProvider#connect()} 把空路径默认拼为
