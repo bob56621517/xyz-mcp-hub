@@ -8,23 +8,32 @@ import java.util.Map;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
+import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
+import io.xyz.xyz_mcp_hub.mcp.SourceType;
+import reactor.core.publisher.Mono;
 
 /**
  * 代理 MCP 服务基类：Hub 作为 MCP Client 透明代理远程公有云 MCP Server。
  *
  * <p>仅支持远程 HTTP（Streamable HTTP）传输（见 ADR-0007），永不用 stdio 子进程。
- * 子类需提供上游完整端点 URL 与可选认证 header（敏感值经 Spring 配置注入）。Hub 启动时
- * {@code HubMcpRegistrar} 调用 {@link #connect()} 连接上游，拉取工具列表原样透传，收到
- * callTool 时透明转发；关闭时经 {@link McpSyncClient#closeGracefully()} 释放。</p>
+ * 子类需提供上游完整端点 URL 与可选认证 header（敏感值经 Spring 配置注入）。旧多端点由
+ * {@code HubMcpRegistrar} 调用 {@link #connect()} 拉取工具列表原样透传；#35 起单端点源注册表经
+ * {@link #discoverTools()} 启动时发现工具并缓存，callTool 时透明转发、响应原样返回；关闭时经
+ * {@link McpSyncClient#closeGracefully()} 释放。</p>
  */
 public abstract class ProxyMcpProvider implements McpEndpointProvider {
 
 	@Override
 	public final Scope getScope() {
 		return Scope.NETWORK;
+	}
+
+	@Override
+	public final SourceType getSourceType() {
+		return SourceType.PROXY;
 	}
 
 	/**
@@ -77,6 +86,55 @@ public abstract class ProxyMcpProvider implements McpEndpointProvider {
 		var client = McpClient.sync(builder.build()).build();
 		client.initialize();
 		return client;
+	}
+
+	/** 启动时发现持有并缓存的上游连接；由 {@link #close()} 释放。 */
+	private volatile McpSyncClient discoveredClient;
+
+	/**
+	 * 启动时向上游 {@code listTools} 发现工具清单并缓存（#35，工具清单来源规则：公有云 ProxyMcp
+	 * 启动时发现，见 ADR-0011）。返回的 {@link McpServerFeatures.AsyncToolSpecification} 使用上游
+	 * 原始 ToolSchema，callHandler 透明转发 callTool 到上游、响应原样返回（含 isError）。
+	 *
+	 * <p>上游不可达（连接/握手/listTools 失败）时抛 {@link RuntimeException}，由源注册表捕获做源
+	 * 降级——沿用 {@link #isEnabled()} 语义：该源不入注册表、应用照常启动。</p>
+	 *
+	 * <p>转发时把 Hub 侧的带前缀工具名（{@code {source}_{tool}}，如 {@code context7_query_docs}）
+	 * 翻译回上游原始工具名（如 {@code query_docs}）再转发，否则上游不识别带前缀名。</p>
+	 *
+	 * @return 上游工具规格列表（已按 {@link #getToolNames()} 固定子集过滤）
+	 */
+	public List<McpServerFeatures.AsyncToolSpecification> discoverTools() {
+		McpSyncClient upstream = connect();
+		try {
+			List<McpSchema.Tool> tools = selectTools(upstream.listTools().tools());
+			List<McpServerFeatures.AsyncToolSpecification> specs = tools.stream()
+				.map(tool -> new McpServerFeatures.AsyncToolSpecification(tool,
+						(exchange, request) -> Mono.fromCallable(() -> upstream.callTool(
+								new McpSchema.CallToolRequest(tool.name(), request.arguments(), request.meta())))))
+				.toList();
+			McpSyncClient previous = discoveredClient;
+			if (previous != null) {
+				previous.closeGracefully();
+			}
+			this.discoveredClient = upstream;
+			return specs;
+		}
+		catch (RuntimeException e) {
+			upstream.closeGracefully();
+			throw e;
+		}
+	}
+
+	/**
+	 * 释放启动时发现建立的上游连接（源注册表 close 时调用）。未发现或无连接时为空操作。
+	 */
+	public void close() {
+		McpSyncClient client = discoveredClient;
+		if (client != null) {
+			client.closeGracefully();
+			discoveredClient = null;
+		}
 	}
 
 }
