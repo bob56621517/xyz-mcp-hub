@@ -22,6 +22,8 @@
 4. **清单 = 构建产物**：镜像名声明在各 sidecar 模块（第三方引擎如 jina 单独一节），根聚合在打包阶段生成 `manifests/mcp-images.yaml`（`ContainerMcp` 按需启动容器的运行规范，含 `image`/`protocol`/`port`）。单一事实源，不漂移。
 
    > **修订（#31，2026-08-10）**：Maven reactor 中**根聚合 pom 最先构建**（子模块在后），"根聚合收集各 sidecar 模块声明的镜像名"在 reactor 内不可行。实际实现：镜像名单一事实源**集中在根聚合 pom 的 `<properties>`**（`mcp.<name>.<field>`），各 sidecar 模块 pom 引用 `${mcp.<name>.image}` 作为 docker build tag；`manifests/mcp-images.yaml` 由根聚合 `verify` 阶段从模板 `manifests/mcp-images.yaml.tpl` 生成（antrun `@mcp.<name>.<field>@` 占位符替换）。清单含 `port`（容器内端口，镜像固定）与 `hostPort`（宿主映射端口，一律 5 位数、避开 8080/8081 等常用端口）。单一事实源与不漂移目标不变，仅声明位置由各模块上移至根聚合。
+   >
+   > **修订（#31，2026-08-10）**：镜像 tag 当前**固定 `latest`**（本地开发流动 tag，每次构建覆盖；不引入 `project.version` 作镜像 tag——当前无 release 流程/git tag 锚点，SNAPSHOT 语义不适合镜像版本）。**版本 tag 留待分发 #2**（届时配 release 流程 + git tag，用 semver 版本 tag 并保留 `latest` 指向最新 release）。
 5. **运行期**：JVM 用 `docker` 顶级工具模块（与 `playwright` 同级，管容器生命周期：拉起/健康检查/闲置回收）按需拉起**本地**容器；jina 从 GHCR pull，sidecar 从本地镜像。`ContainerMcp` = 首用拉起 + 闲置回收。
 6. **当前版本不做**：
    - 分发 #2（把 hub/sidecar 镜像发布到 Docker Hub 直接使用）——暂缓，前提是维护 dockerhub 容器名称清单；
