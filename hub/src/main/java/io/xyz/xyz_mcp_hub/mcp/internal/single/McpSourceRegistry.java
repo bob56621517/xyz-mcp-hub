@@ -15,6 +15,7 @@ import io.xyz.xyz_mcp_hub.docker.Protocol;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
 import io.xyz.xyz_mcp_hub.mcp.SourceType;
+import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.ContainerMcp;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.NativeMcp;
 import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ProxyMcpProvider;
 import org.slf4j.Logger;
@@ -28,11 +29,13 @@ import org.springframework.ai.tool.ToolCallback;
  *
  * <p>原生源（{@link NativeMcp}）工具来自代码声明（{@link #getTools()}）；#35 起 proxy 源
  * （{@link ProxyMcpProvider}）一并迁入——工具清单启动时向上游 {@code listTools} 发现并缓存（公有云
- * 上游不受控，见工具清单来源规则）。工具名统一加 {@code {source}_} 前缀保证跨源全局唯一（MCP 工具
- * 名规范不允许点，暴露名与语法名同一套体系，零映射）。</p>
+ * 上游不受控，见工具清单来源规则）；#37 起容器源（{@link ContainerMcp}，如 markitdown）迁入——工具为
+ * 静态冒烟清单。工具名统一加 {@code {source}_} 前缀保证跨源全局唯一（MCP 工具名规范不允许点，暴露名
+ * 与语法名同一套体系，零映射）。</p>
  *
  * <p>源降级（沿用 {@link McpEndpointProvider#isEnabled()} 语义）：proxy 上游不可达（连接/握手/
- * listTools 失败）时该源不入注册表、应用照常启动，不拖垮启动（#35）。</p>
+ * listTools 失败）时该源不入注册表、应用照常启动，不拖垮启动（#35）；容器源 docker 运行时缺失/清单缺
+ * 规格时 isEnabled=false 不入注册表（#37）。</p>
  *
  * <p>每个源携带目录元数据（{@link McpSource}：type / protocol / scope / base，issue #34），供目录
  * API（{@link CatalogEndpoint}）读取；proxy / container 源迁入后目录自动增长。</p>
@@ -75,8 +78,9 @@ public class McpSourceRegistry {
 
 	public McpSourceRegistry(List<McpEndpointProvider> providers) {
 		this.sources = providers.stream()
-			// #35 起接纳 ProxyMcp（此前仅 NativeMcp；proxy 工具清单启动时发现）
-			.filter(provider -> provider instanceof NativeMcp || provider instanceof ProxyMcpProvider)
+			// #35 起接纳 ProxyMcp（proxy 工具清单启动时发现）；#37 再迁入 ContainerMcp（容器源）
+			.filter(provider -> provider instanceof NativeMcp
+				|| provider instanceof ProxyMcpProvider || provider instanceof ContainerMcp)
 			.filter(McpEndpointProvider::isEnabled)
 			.map(this::toSource)
 			.filter(Objects::nonNull)

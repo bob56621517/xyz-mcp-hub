@@ -11,6 +11,7 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
+import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.ContainerMcp;
 import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ProxyMcpProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +61,12 @@ public class HubMcpRegistrar implements DisposableBean {
 
 	@Bean
 	List<WebMvcStreamableServerTransportProvider> mcpServerTransports() {
-		return providers.stream().map(this::registerEndpoint).filter(Objects::nonNull).toList();
+		// #37：容器源只注册单端点（/xyz-hub/*），不走旧多端点（避免双注册）
+		return providers.stream()
+			.filter(provider -> !(provider instanceof ContainerMcp))
+			.map(this::registerEndpoint)
+			.filter(Objects::nonNull)
+			.toList();
 	}
 
 	private WebMvcStreamableServerTransportProvider registerEndpoint(McpEndpointProvider provider) {
