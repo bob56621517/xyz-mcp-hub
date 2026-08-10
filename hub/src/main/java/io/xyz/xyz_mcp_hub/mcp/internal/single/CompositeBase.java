@@ -7,8 +7,8 @@ import java.util.List;
  * （{@code specName: {includes, excludes}}）发布为目录里的一个派生源，{@code base} 记录其
  * 过滤溯源——与 URL 参数 / YAML 同一套下划线平坦名语法（源名或工具名）。
  *
- * <p>本期（#34）组合源构建器未合入（#33），所有已注册源的 {@code base} 均为 {@code null}；
- * 本 VO 先定稿 schema，待 #33 发布组合源时填充。</p>
+ * <p>#34 先定稿 schema，{@code base} 对非组合源恒为 {@code null}；#33 起由
+ * {@link McpSourceRegistry} 在启动时解析 {@code mcp.specs} 并填充到组合源的 {@code base}。</p>
  *
  * @param includes 组合源 includes（源名或工具名平坦项）
  * @param excludes 组合源 excludes（源名或工具名平坦项）

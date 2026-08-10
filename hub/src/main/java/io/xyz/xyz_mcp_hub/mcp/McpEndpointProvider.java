@@ -33,8 +33,8 @@ public interface McpEndpointProvider {
 	 * 源类型（目录 API 元数据，ADR-0011 / issue #34）：native / proxy / container / host / composite。
 	 *
 	 * <p>默认 {@link SourceType#NATIVE}；{@code HostMcp} 覆盖为 {@link SourceType#HOST}，未来的
-	 * ProxyMcp / ContainerMcp 各自覆盖。组合源（specs 发布）不实现本接口，由组合源构建器（#33）
-	 * 直接以 {@link SourceType#COMPOSITE} 建源。</p>
+	 * ProxyMcp / ContainerMcp 各自覆盖。组合源（specs 发布）不实现本接口，由
+	 * {@code McpSourceRegistry}（#33）启动时直接以 {@link SourceType#COMPOSITE} 建源。</p>
 	 */
 	default SourceType getSourceType() {
 		return SourceType.NATIVE;
