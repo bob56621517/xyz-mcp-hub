@@ -125,8 +125,9 @@ public class McpSingleServer {
 		};
 	}
 
-	/** 释放会话暂存区（注册表只含原生源，不持有上游连接，无其他资源）。 */
+	/** 释放会话暂存区与源注册表资源（#35 起注册表含 proxy 源，持有上游连接，close 时一并释放）。 */
 	public void close() {
+		registry.close();
 		sseSessionFilters.clear();
 		pendingSseFilter.remove();
 	}
