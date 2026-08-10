@@ -9,6 +9,7 @@ import io.xyz.xyz_mcp_hub.docker.ContainerSpecReader;
 import io.xyz.xyz_mcp_hub.docker.Protocol;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
+import io.xyz.xyz_mcp_hub.mcp.SourceType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.ToolCallback;
@@ -43,6 +44,17 @@ public abstract class ContainerMcp implements McpEndpointProvider {
 	@Override
 	public final Scope getScope() {
 		return Scope.NETWORK;
+	}
+
+	/** 目录元数据（#34）：容器源 type=CONTAINER（protocol 取容器规格，见 {@link #getProtocol()}）。 */
+	@Override
+	public SourceType getSourceType() {
+		return SourceType.CONTAINER;
+	}
+
+	/** 容器接入协议（目录元数据 protocol 字段；isEnabled 已保证规格存在）。 */
+	public Protocol getProtocol() {
+		return requireSpec().protocol();
 	}
 
 	/** 静态冒烟工具清单（子类声明，镜像 pin 绑定）。 */

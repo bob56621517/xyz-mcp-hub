@@ -1,6 +1,7 @@
 package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.host;
 
 import io.xyz.xyz_mcp_hub.mcp.Scope;
+import io.xyz.xyz_mcp_hub.mcp.SourceType;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.NativeMcp;
 
 /**
@@ -13,6 +14,14 @@ public abstract class HostMcp extends NativeMcp {
 
 	protected HostMcp() {
 		super(Scope.HOST);
+	}
+
+	/**
+	 * 源类型（目录 API，issue #34）：主机 MCP 恒为 {@link SourceType#HOST}。
+	 */
+	@Override
+	public final SourceType getSourceType() {
+		return SourceType.HOST;
 	}
 
 }

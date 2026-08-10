@@ -6,6 +6,8 @@ import java.util.Set;
 
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
+import io.xyz.xyz_mcp_hub.mcp.SourceType;
+import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.host.HostMcp;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.NativeMcp;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.tool.ToolCallback;
@@ -66,6 +68,32 @@ class ToolFilterAndRegistryTest {
 		@Override
 		public String getPath() {
 			return "/mcp/builtin/beta";
+		}
+
+		@Override
+		public List<ToolCallback> getTools() {
+			return tools;
+		}
+
+	}
+
+	/** 假主机源（HostMcp）：目录元数据应派生为 type=host / scope=host。 */
+	private static class HostSource extends HostMcp {
+
+		private final List<ToolCallback> tools;
+
+		HostSource(String tool) {
+			this.tools = toolCallbacks(tool);
+		}
+
+		@Override
+		public String getName() {
+			return "hosty";
+		}
+
+		@Override
+		public String getPath() {
+			return "/mcp/builtin/hosty";
 		}
 
 		@Override
@@ -202,6 +230,32 @@ class ToolFilterAndRegistryTest {
 		};
 		McpSourceRegistry registry = new McpSourceRegistry(List.of(alpha));
 		assertThat(registry.allToolNames()).isEmpty();
+	}
+
+	// ---- 目录元数据（issue #34）：McpSource 携带 type/protocol/scope/base ----
+
+	@Test
+	void nativeSourceCarriesCatalogMetadata() {
+		McpSourceRegistry registry = registryWithAlphaAndBeta();
+		McpSourceRegistry.McpSource alpha = registry.sources().get(0);
+		assertThat(alpha.name()).isEqualTo("alpha");
+		assertThat(alpha.type()).isEqualTo(SourceType.NATIVE);
+		assertThat(alpha.scope()).isEqualTo(Scope.NETWORK);
+		assertThat(alpha.protocol()).isNull();
+		assertThat(alpha.base()).isNull();
+		assertThat(alpha.specs()).extracting(spec -> spec.tool().name())
+			.containsExactlyInAnyOrder("alpha_toolA", "alpha_toolB");
+	}
+
+	@Test
+	void hostSourceIsTypedHostWithHostScope() {
+		McpSourceRegistry registry = new McpSourceRegistry(List.of(new HostSource("toolA")));
+		McpSourceRegistry.McpSource host = registry.sources().get(0);
+		assertThat(host.type()).isEqualTo(SourceType.HOST);
+		assertThat(host.scope()).isEqualTo(Scope.HOST);
+		assertThat(host.protocol()).isNull();
+		assertThat(host.base()).isNull();
+		assertThat(host.specs()).extracting(spec -> spec.tool().name()).containsExactly("hosty_toolA");
 	}
 
 }
