@@ -10,7 +10,10 @@ import java.util.stream.Collectors;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.xyz.xyz_mcp_hub.docker.Protocol;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
+import io.xyz.xyz_mcp_hub.mcp.Scope;
+import io.xyz.xyz_mcp_hub.mcp.SourceType;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.NativeMcp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +28,9 @@ import org.springframework.ai.tool.ToolCallback;
  * 工具名统一加 {@code {source}_} 前缀保证跨源全局唯一（MCP 工具名规范不允许点，暴露名与语法名
  * 同一套体系，零映射）。proxy 与 space 仍只走旧多端点，不在注册表内（后续议题迁入）。</p>
  *
+ * <p>每个源携带目录元数据（{@link McpSource}：type / protocol / scope / base，issue #34），供目录
+ * API（{@link CatalogEndpoint}）读取；proxy / container 源迁入后目录自动增长。</p>
+ *
  * <p>解析规则（与 ADR-0011 完全一致）：先精确匹配工具名，再按源名展开该源全部工具；未知项静默
  * 忽略 + 日志 warn；无参数 = 全量。</p>
  */
@@ -32,9 +38,25 @@ public class McpSourceRegistry {
 
 	private static final Logger log = LoggerFactory.getLogger(McpSourceRegistry.class);
 
-	/** 单个源：源名 + 底层 provider + 带前缀的工具规格。 */
-	public record McpSource(String name, McpEndpointProvider provider,
-			List<McpServerFeatures.AsyncToolSpecification> specs) {
+	/**
+	 * 单个源：源名 + 目录元数据（type/protocol/scope/base，ADR-0011）+ 底层 provider + 带前缀的工具规格。
+	 *
+	 * <p>元数据模型（#34）为 #35/#36/#37 共用、一次定稿：{@code type} 由 provider 声明
+	 * （{@link McpEndpointProvider#getSourceType()}）；{@code protocol} 为 container 专有（mcp|rest，
+	 * 非容器源为 null）；{@code scope} 取 provider 部署范围；{@code base} 为组合源溯源（#33 组合源
+	 * 构建器合入后填充，非组合源为 null）。</p>
+	 *
+	 * @param name 源名（URL includes/excludes 引用单元）
+	 * @param type 源类型（native/proxy/container/host/composite）
+	 * @param protocol 容器接入协议（container 专有，其余为 null）
+	 * @param scope 部署范围（host/network）
+	 * @param provider 底层端点提供者
+	 * @param specs 带 {@code {source}_} 前缀的工具规格（全量注册）
+	 * @param base 组合源溯源（非组合源为 null，#33 后填充）
+	 */
+	public record McpSource(String name, SourceType type, Protocol protocol, Scope scope,
+			McpEndpointProvider provider, List<McpServerFeatures.AsyncToolSpecification> specs,
+			CompositeBase base) {
 	}
 
 	private final List<McpSource> sources;
@@ -144,13 +166,15 @@ public class McpSourceRegistry {
 		log.warn("工具视图过滤：未知的 includes/excludes 项被忽略: {}", item);
 	}
 
-	/** 把一个 provider 化为 source：工具名加 {@code {source}_} 前缀。 */
+	/** 把一个 provider 化为 source：工具名加 {@code {source}_} 前缀；目录元数据取自 provider 声明。 */
 	private McpSource toSource(McpEndpointProvider provider) {
 		String sourceName = provider.getName();
 		List<McpServerFeatures.AsyncToolSpecification> specs = provider.getTools().stream()
 			.map(toolCallback -> toPrefixedSpec(sourceName, toolCallback))
 			.toList();
-		return new McpSource(sourceName, provider, specs);
+		// #34 目录元数据：type 由 provider 声明；protocol 仅容器源有（本期无容器源，恒 null）；
+		// scope 取 provider 部署范围；base 为组合源溯源（#33 后填充，本期恒 null）
+		return new McpSource(sourceName, provider.getSourceType(), null, provider.getScope(), provider, specs, null);
 	}
 
 	private McpServerFeatures.AsyncToolSpecification toPrefixedSpec(String sourceName, ToolCallback toolCallback) {

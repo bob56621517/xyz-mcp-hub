@@ -91,6 +91,15 @@ public class McpSingleEndpointRegistrar implements SmartLifecycle {
 		return server;
 	}
 
+	/**
+	 * 源注册表 Bean（issue #34 目录 API 数据源）：供 {@link CatalogEndpoint} 读取已注册源。
+	 * 注册表在构造时已从 provider 装配完成，本方法只把既有实例发布为可注入 Bean。
+	 */
+	@Bean
+	McpSourceRegistry mcpSourceRegistry() {
+		return server.registry();
+	}
+
 	@Override
 	public void start() {
 		running = true;
