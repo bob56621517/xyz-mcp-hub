@@ -200,9 +200,11 @@ public class McpSourceRegistry {
 		List<McpServerFeatures.AsyncToolSpecification> specs = provider.getTools().stream()
 			.map(toolCallback -> toPrefixedSpec(sourceName, toolCallback))
 			.toList();
-		// #34 目录元数据：type 由 provider 声明；protocol 仅容器源有（本期无容器源，恒 null）；
-		// scope 取 provider 部署范围；base 为组合源溯源（#33 后填充，本期恒 null）
-		return new McpSource(sourceName, provider.getSourceType(), null, provider.getScope(), provider, specs, null);
+		// #34 目录元数据：type 由 provider 声明；protocol 仅容器源有（mcp|rest，取 provider 声明，见
+		// ContainerMcp#getProtocol，#37/#38；isEnabled 已保证规格存在，getProtocol 不抛）；
+		// scope 取 provider 部署范围；base 为组合源溯源（#33 后填充，非组合源恒 null）
+		Protocol protocol = provider instanceof ContainerMcp containerMcp ? containerMcp.getProtocol() : null;
+		return new McpSource(sourceName, provider.getSourceType(), protocol, provider.getScope(), provider, specs, null);
 	}
 
 	/**

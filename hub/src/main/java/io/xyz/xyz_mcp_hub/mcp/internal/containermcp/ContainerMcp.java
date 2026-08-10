@@ -15,15 +15,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.ToolCallback;
 
 /**
- * 容器 MCP 源基类（ADR-0009 四类 MCP 之一，protocol=mcp 型，#37）：本地容器按需拉起 → 转发其 MCP 工具。
+ * 容器 MCP 源基类（ADR-0009 四类 MCP 之一，#37 mcp 型 / #38 rest 型）：本地容器按需拉起 → 接入容器能力。
  *
- * <p>容器生命周期（首用拉起 + 防重拉 + 闲置回收 + 关闭销毁）全部委托 {@code docker} 模块的
- * {@link ContainerManager}；工具清单由子类以静态冒烟数据声明（镜像由我们 pin，工具集与所 pin 镜像版本
- * 绑定，ADR-0011 决策 5）；工具调用经 {@link ContainerMcpClient} 转发到容器内 MCP 端点。</p>
+ * <p>子类声明接入协议（{@link #protocol()}）：{@code mcp} 型（如 markitdown）转发容器内 MCP 工具，
+ * 工具调用经 {@link ContainerMcpClient} 转发；{@code rest} 型（如 jina）JVM 薄包装容器 REST API，
+ * 工具调用经 {@link ContainerRestClient} 转发。容器生命周期（首用拉起 + 防重拉 + 闲置回收 + 关闭销毁）
+ * 全部委托 {@code docker} 模块的 {@link ContainerManager}；工具清单由子类以静态冒烟数据声明（镜像由我们
+ * pin，工具集与所 pin 镜像版本绑定，ADR-0011 决策 5）。</p>
  *
  * <p>优雅降级（#37 验收）：docker 运行时未启用（{@code docker.enabled=false}，ContainerManager bean
- * 不存在）或镜像清单缺失本源 mcp 规格时 {@link #isEnabled()} 返回 {@code false}，源不出现在工具目录、
- * 不拖垮 hub；工具调用失败由工具层返回友好文本（见 {@code MarkitdownTools}）。</p>
+ * 不存在）或镜像清单缺失本源规格时 {@link #isEnabled()} 返回 {@code false}，源不出现在工具目录、
+ * 不拖垮 hub；工具调用失败由工具层返回友好文本（见 {@code MarkitdownTools} / {@code JinaTools}）。</p>
  */
 public abstract class ContainerMcp implements McpEndpointProvider {
 
@@ -32,6 +34,7 @@ public abstract class ContainerMcp implements McpEndpointProvider {
 	private final ContainerManager containerManager;
 	private final ContainerSpecReader specReader;
 	private final ContainerMcpClient client;
+	private final ContainerRestClient restClient;
 
 	protected ContainerMcp(ContainerManager containerManager, ContainerSpecReader specReader,
 			ContainerEndpoint endpoint) {
@@ -39,6 +42,7 @@ public abstract class ContainerMcp implements McpEndpointProvider {
 		this.specReader = specReader;
 		// client 持有 containerManager：重试 initialize 期间 touch 容器，防短 TTL 回收误删重试中的容器
 		this.client = new ContainerMcpClient(endpoint, containerManager);
+		this.restClient = new ContainerRestClient(endpoint, containerManager);
 	}
 
 	@Override
@@ -57,6 +61,9 @@ public abstract class ContainerMcp implements McpEndpointProvider {
 		return requireSpec().protocol();
 	}
 
+	/** 本源接入协议（{@code mcp} 转发容器内 MCP 工具 / {@code rest} 薄包装容器 REST API）。 */
+	protected abstract Protocol protocol();
+
 	/** 静态冒烟工具清单（子类声明，镜像 pin 绑定）。 */
 	@Override
 	public abstract List<ToolCallback> getTools();
@@ -67,22 +74,27 @@ public abstract class ContainerMcp implements McpEndpointProvider {
 			log.debug("docker 容器运行时未启用（docker.enabled=false），ContainerMcp 源 {} 降级禁用", getName());
 			return false;
 		}
-		return findMcpSpec().isPresent();
+		return findSpec().isPresent();
 	}
 
 	/** 本源对应容器规格（isEnabled 已保证存在；调用路径缺失时抛异常说明，正常不应发生）。 */
 	protected ContainerSpec requireSpec() {
-		return findMcpSpec().orElseThrow(() -> new IllegalStateException("清单缺少 " + getName()
-			+ " 的 mcp 型容器规格（manifests/mcp-images.yaml 是否已由 mvn verify 生成）"));
+		return findSpec().orElseThrow(() -> new IllegalStateException("清单缺少 " + getName()
+			+ " 的 " + protocol().name().toLowerCase() + " 型容器规格（manifests/mcp-images.yaml 是否已由 mvn verify 生成）"));
 	}
 
-	/** 本源 mcp 型容器规格（镜像清单按源名取，过滤 protocol=mcp）。 */
-	private Optional<ContainerSpec> findMcpSpec() {
-		return specReader.byName(getName()).filter(spec -> spec.protocol() == Protocol.MCP);
+	/** 本源容器规格（镜像清单按源名取，按 {@link #protocol()} 过滤）。 */
+	private Optional<ContainerSpec> findSpec() {
+		return specReader.byName(getName()).filter(spec -> spec.protocol() == protocol());
 	}
 
-	/** MCP 转发客户端（内部持有 containerManager：首用拉起 + 重试 touch）。 */
+	/** MCP 转发客户端（protocol=mcp 型；内部持有 containerManager：首用拉起 + 重试 touch）。 */
 	protected ContainerMcpClient client() {
 		return client;
+	}
+
+	/** REST 转发客户端（protocol=rest 型；内部持有 containerManager：首用拉起）。 */
+	protected ContainerRestClient restClient() {
+		return restClient;
 	}
 }

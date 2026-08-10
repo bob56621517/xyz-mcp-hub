@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 目录 API 集成测试（ADR-0011 / issue #34）：{@code GET /xyz-hub/catalog} 返回已注册源的机器可读清单。
  *
  * <p>主 seam：经真实 HTTP 端点验证目录形状——每源含 name / type / protocol / scope / tools / base，
- * 与 ADR-0011 目录 schema 一致；冒烟断言当前已注册源（utils / bocha / fetch 为 native，playwright 为 host）都在清单中。
+ * 与 ADR-0011 目录 schema 一致；冒烟断言当前已注册源（utils / bocha 为 native，playwright 为 host）都在清单中。
  * 无认证：请求不带任何 Authorization 头即可读（本端点与 MCP 端点一致，仅本地可读）。</p>
  *
  * <p>无外部依赖：bocha 上游用 JDK {@link HttpServer} mock（同 {@code McpSingleEndpointTest} 手法），
@@ -81,14 +81,14 @@ class McpCatalogEndpointTest {
 	}
 
 	// ---- 验收 1：目录返回所有已注册源及其工具（无认证、仅本地可读） ----
-	// 冒烟（本期）：当前已注册源为 4 个 native/host 源；playwright 已迁为 HostMcp 源（type=host，issue #36），
-	// 其余（bocha/fetch/utils）为 native（目录随后续源迁入自动增长）
+	// 冒烟（本期）：当前已注册源为 3 个 native/host 源；playwright 已迁为 HostMcp 源（type=host，issue #36），
+	// 其余（bocha/utils）为 native；#38 fetch 门面退役后不在目录（目录随后续源迁入自动增长）
 
 	@Test
 	void catalogListsAllRegisteredNativeSources() throws Exception {
 		JsonNode sources = fetchCatalog().get("sources");
 		assertThat(sources.isArray()).isTrue();
-		assertThat(names(sources)).containsExactlyInAnyOrder("bocha", "fetch", "playwright", "utils");
+		assertThat(names(sources)).containsExactlyInAnyOrder("bocha", "playwright", "utils");
 		for (JsonNode source : sources) {
 			String expected = "playwright".equals(source.get("name").asText()) ? "host" : "native";
 			assertThat(source.get("type").asText()).isEqualTo(expected);
@@ -136,10 +136,8 @@ class McpCatalogEndpointTest {
 	}
 
 	@Test
-	void fetchAndPlaywrightSourcesAreListedWithTools() throws Exception {
+	void playwrightSourceIsListedWithTools() throws Exception {
 		JsonNode sources = fetchCatalog().get("sources");
-		JsonNode fetch = sourceByName(sources, "fetch");
-		assertThat(toolNames(fetch)).containsExactly("fetch_fetch");
 		JsonNode playwright = sourceByName(sources, "playwright");
 		assertThat(toolNames(playwright)).contains("playwright_web_session", "playwright_browser_navigate");
 	}
