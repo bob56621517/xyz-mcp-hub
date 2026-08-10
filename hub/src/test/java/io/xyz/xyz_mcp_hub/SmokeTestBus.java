@@ -11,7 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import io.xyz.xyz_mcp_hub.content.MarkitdownSmoke;
+import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.JinaContainerMcpSmoke;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
 
 /**
@@ -24,12 +24,11 @@ import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
  *
  * <p>运行：{@code ./mvnw exec:java -Dexec.mainClass=io.xyz.xyz_mcp_hub.SmokeTestBus -Dexec.classpathScope=test -Dvaadin.skip=true}</p>
  *
- * @requires-web utils/fetch 外各任务需真实外部网络（api.bochaai.com / api.githubcopilot.com / mcp.context7.com / mcp.grep.app / wd-mcp.wmcloud.org）
- * @requires-web fetch 任务需真实外部网络（example.com / www.w3.org）
+ * @requires-web utils 外各任务需真实外部网络（api.bochaai.com / api.githubcopilot.com / mcp.context7.com / mcp.grep.app / wd-mcp.wmcloud.org）
  * @requires-token BOCHA_API_KEY bocha 冒烟；未设置则跳过
  * @requires-token GITHUB_TOKEN github 冒烟；未设置则跳过
  * @requires-service chromium playwright 冒烟；未安装则跳过
- * @requires-service markitdown markitdown 转换冒烟；需本机 uvx（未安装则跳过，需 PyPI 可达）
+ * @requires-docker jina 冒烟；需本机 docker daemon + jina 镜像（ghcr.io/jina-ai/reader）
  */
 public class SmokeTestBus {
 
@@ -58,14 +57,9 @@ public class SmokeTestBus {
 							McpPlaywrightEndpointTest.main(new String[0]);
 							return null;
 						})),
-				new SmokeTask("fetch", "快路径抓取（HTML/PDF/SSRF 拦截，@requires-web）+ 浏览器路径（engine=browser，JS 渲染/双路径/子资源 SSRF/截图，@requires-service chromium）",
+				new SmokeTask("jina", "jina reader 容器代抓（HTML/PDF→markdown、SSRF 拦截、闲置回收，@requires-docker）",
 						() -> callMain(() -> {
-							FetchRealApiSmoke.main(new String[0]);
-							return null;
-						})),
-				new SmokeTask("markitdown", "任意格式→Markdown 转换（自拉 markitdown 子进程 + 健康检查 + 销毁，@requires-service markitdown）",
-						() -> callMain(() -> {
-							MarkitdownSmoke.main(new String[0]);
+							JinaContainerMcpSmoke.main(new String[0]);
 							return null;
 						})));
 

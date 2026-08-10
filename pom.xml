@@ -24,8 +24,6 @@
 		<vaadin.version>25.2.5</vaadin.version>
 		<spring-modulith.version>2.1.0</spring-modulith.version>
 		<playwright.version>1.62.0</playwright.version>
-		<jsoup.version>1.22.2</jsoup.version>
-		<pdfbox.version>2.0.26</pdfbox.version>
 
 		<!--
 			#31 sidecar 镜像清单 —— 单一事实源（ADR-0012 / #31）。

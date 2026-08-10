@@ -17,8 +17,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
- * SSRF 防护组件（ADR-0010）：fetch 端点快路径与浏览器路径统一复用的 URL 校验。
- * 原位于 fetch 包，重构后迁至共享 {@code security} 包（fetch 已退役，非 fetch 专属）。
+ * SSRF 防护组件（ADR-0010）：容器代抓等网络抓取前统一复用的 URL 校验。
+ * 原位于 fetch 包，fetch 退役后迁至共享 {@code security} 包（非 fetch 专属，容器代抓转发前预检）。
  *
  * <ul>
  *   <li>scheme 白名单：仅 http/https，拒绝 file://、ftp://、gopher:// 等</li>

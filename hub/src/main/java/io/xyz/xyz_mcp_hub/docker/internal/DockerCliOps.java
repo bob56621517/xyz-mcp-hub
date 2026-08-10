@@ -53,7 +53,13 @@ public class DockerCliOps implements DockerOps {
 
 	@Override
 	public String run(ContainerSpec spec) {
-		// 清理同名残留（上一次运行可能遗留同名容器，docker run 会因名字冲突失败）；容忍失败
+		// 同名容器已在运行 → 复用（首用拉起幂等：外部已手工拉起 / 上次运行仍在，视为就绪直接复用，不重建）
+		String runningId = runningContainerId(spec.containerName());
+		if (!runningId.isEmpty()) {
+			log.info("容器 {} 已在运行（{}），复用", spec.containerName(), runningId);
+			return runningId;
+		}
+		// 清理同名残留（已停止的同名容器，docker run 会因名字冲突失败）；容忍失败
 		exec("rm", "-f", spec.containerName());
 		ensureNetwork();
 		ExecResult result = exec("run", "-d",
@@ -72,6 +78,12 @@ public class DockerCliOps implements DockerOps {
 	public boolean isRunning(String containerId) {
 		ExecResult result = exec("ps", "-q", "--filter", "id=" + containerId);
 		return result.exitCode() == 0 && !result.output().isBlank();
+	}
+
+	/** 运行中的同名容器 id（无则空串）；docker ps 按精确名过滤（运行中才出现在 ps 输出）。 */
+	private String runningContainerId(String name) {
+		ExecResult result = exec("ps", "-q", "--filter", "name=^" + name + "$");
+		return result.exitCode() == 0 ? result.output().trim() : "";
 	}
 
 	@Override
