@@ -35,6 +35,7 @@
 | `@requires-web` | 需真实外部网络 | 探活外部域名可达性 |
 | `@requires-token 环境变量名` | 需指定环境变量（token） | 检查 `${环境变量名:-unset}` 是否存在 |
 | `@requires-service 服务名` | 需先启动部署的服务（未来需求） | 探活服务端口 |
+| `@requires-docker` | 需本机 docker daemon 可用（容器冒烟，如 #32） | 检查 `docker info` 通过；缺镜像/清单时按冒烟内提示补齐 |
 
 示例：
 
@@ -50,7 +51,7 @@
 
 AI 遇到含 `@requires-*` 声明的测试类时：
 
-1. **检查环境**：`@requires-token` → 检查环境变量是否存在；`@requires-service` → 探活服务端口；`@requires-web` → 确认有网络。
+1. **检查环境**：`@requires-token` → 检查环境变量是否存在；`@requires-service` → 探活服务端口；`@requires-web` → 确认有网络；`@requires-docker` → 确认 `docker info` 通过。
 2. **缺失 → 问人**：向用户索要凭据/配置，或提示写入 `application-local.yml` / 环境变量；不得擅自跳过。
 3. **就绪 → 执行**：手工运行 main 冒烟，比对结果合理（非空、无失败标记）即通过。
 
@@ -65,6 +66,6 @@ AI 遇到含 `@requires-*` 声明的测试类时：
 # 全部测试（跳过 Vaadin 前端构建）
 ./mvnw test -Dvaadin.skip=true
 
-# 运行某测试类内的 main 冒烟
-./mvnw exec:java -Dexec.mainClass=<含 main 的测试类全名> -Dexec.classpathScope=test -Dvaadin.skip=true
+# 运行某测试类内的 main 冒烟（须加 -pl hub：根聚合 pom 不含测试类，缺省会 ClassNotFoundException）
+./mvnw exec:java -pl hub -Dexec.mainClass=<含 main 的测试类全名> -Dexec.classpathScope=test -Dvaadin.skip=true
 ```

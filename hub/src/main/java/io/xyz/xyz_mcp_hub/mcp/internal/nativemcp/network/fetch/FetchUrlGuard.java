@@ -1,7 +1,7 @@
 package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch;
 
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.ResolvedTarget;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard.ResolvedTarget;
 
 /**
  * SSRF 校验抽象：对 URL 做完整校验并锁定解析结果。

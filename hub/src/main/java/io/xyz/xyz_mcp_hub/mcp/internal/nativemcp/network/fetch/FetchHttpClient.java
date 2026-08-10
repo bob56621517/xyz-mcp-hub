@@ -31,7 +31,7 @@ import org.springframework.stereotype.Component;
 /**
  * fetch 快路径的 HTTP 客户端：Apache HttpClient 5 封装，实现 SSRF 锁定直连。
  *
- * <p>核心约束来自 {@link io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard}
+ * <p>核心约束来自 {@link io.xyz.xyz_mcp_hub.security.SsrUrlGuard}
  * 的 DNS rebinding 防护：建连必须使用 {@code resolveAndCheck} 锁定的公网 IP，严禁对 host
  * 二次解析。故 {@link #lock(String, InetAddress)} 将校验通过的 host→IP 写入并发表，
  * 自定义 {@link DnsResolver} 只返回表内 IP，其余一律抛 {@link UnknownHostException} 拒绝建连。</p>

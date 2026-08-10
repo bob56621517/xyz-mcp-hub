@@ -16,9 +16,9 @@ import java.util.List;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.ResolvedTarget;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.SsrGuardException;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard.ResolvedTarget;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard.SsrGuardException;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;

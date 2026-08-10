@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import com.sun.net.httpserver.HttpExchange;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.ResolvedTarget;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard.ResolvedTarget;
 
 /**
  * fetch 浏览器路径测试共享脚手架：本地 JS 渲染测试页 HTML、HTTP 响应 helper 与

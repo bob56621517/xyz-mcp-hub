@@ -5,8 +5,8 @@ import java.net.URI;
 import java.util.Locale;
 
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.FetchHttpClient.FetchResponse;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.ResolvedTarget;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard.ResolvedTarget;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

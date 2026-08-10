@@ -15,8 +15,8 @@ import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch.PdfTextExtractor;
 import io.xyz.xyz_mcp_hub.playwright.PlaywrightProperties;
 import io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry;
 import io.xyz.xyz_mcp_hub.playwright.internal.SharedChromium;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.SsrGuardException;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard.SsrGuardException;
 
 /**
  * Fetch 端点真实抓取冒烟（手工运行，非自动测试）。

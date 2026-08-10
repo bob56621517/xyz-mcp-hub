@@ -1,4 +1,4 @@
-package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf;
+package io.xyz.xyz_mcp_hub.security;
 
 import java.net.InetAddress;
 import java.net.URI;
@@ -17,7 +17,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
- * SSRF 防护组件（ADR-0010 决策 6）：fetch 端点快路径与浏览器路径统一复用的 URL 校验。
+ * SSRF 防护组件（ADR-0010）：fetch 端点快路径与浏览器路径统一复用的 URL 校验。
+ * 原位于 fetch 包，重构后迁至共享 {@code security} 包（fetch 已退役，非 fetch 专属）。
  *
  * <ul>
  *   <li>scheme 白名单：仅 http/https，拒绝 file://、ftp://、gopher:// 等</li>

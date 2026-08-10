@@ -1,6 +1,6 @@
 package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.fetch;
 
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.ssrf.SsrUrlGuard.SsrGuardException;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard.SsrGuardException;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
