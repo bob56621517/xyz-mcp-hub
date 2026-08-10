@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
+import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.ContainerMcp;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.NativeMcp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,9 +22,10 @@ import org.springframework.ai.tool.ToolCallback;
  * 源注册表（ADR-0011）：收集所有 {@link McpEndpointProvider}，把「provider 演化为 source」，为单
  * McpServer 提供统一的工具注册与 URL 参数工具视图解析。
  *
- * <p>本议题（#30）首批迁入原生源：注册所有 {@link NativeMcp}（utils / bocha / fetch / playwright），
- * 工具名统一加 {@code {source}_} 前缀保证跨源全局唯一（MCP 工具名规范不允许点，暴露名与语法名
- * 同一套体系，零映射）。proxy 与 space 仍只走旧多端点，不在注册表内（后续议题迁入）。</p>
+ * <p>首批迁入原生源（#30）：注册所有 {@link NativeMcp}（utils / bocha / fetch / playwright）；#37 迁入
+ * 容器源（{@link ContainerMcp}，如 markitdown）。工具名统一加 {@code {source}_} 前缀保证跨源全局唯一
+ * （MCP 工具名规范不允许点，暴露名与语法名同一套体系，零映射）。proxy 与 space 仍只走旧多端点，不在
+ * 注册表内（后续议题迁入）。</p>
  *
  * <p>解析规则（与 ADR-0011 完全一致）：先精确匹配工具名，再按源名展开该源全部工具；未知项静默
  * 忽略 + 日志 warn；无参数 = 全量。</p>
@@ -47,7 +49,8 @@ public class McpSourceRegistry {
 
 	public McpSourceRegistry(List<McpEndpointProvider> providers) {
 		this.sources = providers.stream()
-			.filter(provider -> provider instanceof NativeMcp)
+			// #37：迁入 ContainerMcp 源（native + container 都进单端点源注册表）
+			.filter(provider -> provider instanceof NativeMcp || provider instanceof ContainerMcp)
 			.filter(McpEndpointProvider::isEnabled)
 			.map(this::toSource)
 			.toList();
