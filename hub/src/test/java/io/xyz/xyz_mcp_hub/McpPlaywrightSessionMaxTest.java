@@ -62,7 +62,7 @@ class McpPlaywrightSessionMaxTest {
 
 	private void connect() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/mcp/builtin/playwright")
+			.endpoint("/xyz-hub/mcp?includes=[playwright]")
 			.build();
 		var c = McpClient.sync(transport).build();
 		c.initialize();
@@ -77,7 +77,7 @@ class McpPlaywrightSessionMaxTest {
 	}
 
 	private String createSession() {
-		String text = callText("web_session", Map.of("action", "create"));
+		String text = callText("playwright_web_session", Map.of("action", "create"));
 		// Spring AI 对工具返回值做 JSON 序列化，文本两侧带引号，提取 sessionId 时去掉
 		return text.substring(text.indexOf("sessionId: ") + "sessionId: ".length()).replace("\"", "");
 	}
@@ -88,12 +88,12 @@ class McpPlaywrightSessionMaxTest {
 		String s1 = createSession();
 		String s2 = createSession();
 		// 达上限后创建被拒绝
-		assertThat(callText("web_session", Map.of("action", "create"))).contains("已达上限");
+		assertThat(callText("playwright_web_session", Map.of("action", "create"))).contains("已达上限");
 		// 关闭一个后可继续创建
-		assertThat(callText("web_session", Map.of("action", "close", "sessionId", s1))).contains("已关闭");
+		assertThat(callText("playwright_web_session", Map.of("action", "close", "sessionId", s1))).contains("已关闭");
 		String s3 = createSession();
 		assertThat(s3).startsWith("ws-");
-		callText("web_session", Map.of("action", "close", "sessionId", s2));
-		callText("web_session", Map.of("action", "close", "sessionId", s3));
+		callText("playwright_web_session", Map.of("action", "close", "sessionId", s2));
+		callText("playwright_web_session", Map.of("action", "close", "sessionId", s3));
 	}
 }

@@ -61,9 +61,11 @@ java -jar hub/target/hub-*.jar
 ./mvnw -pl hub spring-boot:run -Dvaadin.skip=true
 ```
 
-## Playwright 浏览器自动化端点
+## Playwright 浏览器自动化源（HostMcp）
 
-`/mcp/builtin/playwright` 提供原生浏览器自动化（导航、可访问性快照、点击/输入、截图、网络与控制台监听等，按官方 `@playwright/mcp` 工具集实现），无外部 API key。
+playwright 以 **HostMcp 源**（ADR-0009 例外定位：同宿主真实浏览器交互）注册于单端点
+`/xyz-hub/mcp`，连接方用 `?includes=[playwright]` 暴露浏览器自动化工具集（导航、可访问性快照、
+点击/输入、截图、网络与控制台监听等，按官方 `@playwright/mcp` 工具集实现），无外部 API key。
 
 前置：首次使用前安装 chromium 二进制：
 
@@ -72,6 +74,7 @@ java -jar hub/target/hub-*.jar
 ```
 
 浏览器会话懒启动，首次工具调用时拉起无头 chromium；无头与否可通过 `playwright.headless` 属性配置（默认 true）。
+工具名统一加 `playwright_` 前缀（如 `playwright_web_session`），跨源全局唯一。
 
 ## 第一个里程碑
 
