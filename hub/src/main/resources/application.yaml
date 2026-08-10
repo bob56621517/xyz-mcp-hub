@@ -14,6 +14,14 @@ spring:
       - org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration
       - org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerSseWebMvcAutoConfiguration
       - org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStatelessWebMvcAutoConfiguration
+server:
+  tomcat:
+    # URL 参数工具视图（ADR-0011）用 [a,b] 方括号列表语法，Tomcat 需放行方括号字符，
+    # 否则连接 /xyz-hub/mcp?includes=[bocha] 会被 400 拒掉。
+    relaxed-query-chars:
+      - "["
+      - "]"
+
 vaadin:
   launch-browser: false
   url-mapping: /ui/*
