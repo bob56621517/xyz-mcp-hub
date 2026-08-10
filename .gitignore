@@ -48,3 +48,6 @@ build/
 
 ### Spring Boot ###
 application-local.yml
+
+### mvn 生成的构建产物（#31）###
+manifests/mcp-images.yaml

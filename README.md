@@ -39,9 +39,8 @@ xyz-mcp-hub/
 ├── pom.xml          ← 根聚合（多模块 Maven，ADR-0012）
 ├── hub/             ← 核心 JVM 模块：标准 Spring Boot 应用（java -jar 直启，不进 docker）
 │   └── src/
-├── sidecars/        ← 多语言薄 MCP 封装层骨架（目标 = Dockerfile/镜像，见 #31）
-│   ├── markitdown/
-│   └── playwright/
+├── sidecars/        ← 容器化 sidecar（markitdown 容器镜像；playwright 属 HostMcp 本机引擎，不在此）
+│   └── markitdown/  （Dockerfile + pom，mvn install 构建并装入本地 docker）
 ├── manifests/       ← mvn 生成的运行规范（mcp-images.yaml，见 #31）
 ├── docs/
 │   └── adr/           ← 架构决策记录（按需创建）

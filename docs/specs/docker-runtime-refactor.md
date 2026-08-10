@@ -46,7 +46,7 @@
 ## Implementation Decisions
 
 - **四类 MCP 与薄实现原则**（ADR-0009）：NativeMcp 一律薄（包装 HTTP API/SDK 或转发/容器化，不重造引擎）；HostMcp 为例外（同宿主文件/程序/真实浏览器交互，如 playwright 非无头改页面，仍以官方 SDK 调用为主）。`fetch` 门面与 `content` 顶级模块整体退役；`HtmlToMarkdown`/`PdfTextExtractor`/Readability/分块/playwright 渲染编排删除。
-- **`ContainerSpec`**：`image`（镜像名）、`protocol`（`mcp` | `rest`）、`port`（容器内监听端口）。`mcp` 型转发容器 MCP 工具；`rest` 型由 JVM 薄包装容器 REST API（如 `jina_reader(uri) → markdown`）。
+- **`ContainerSpec`**：`image`（镜像名）、`protocol`（`mcp` | `rest`）、`port`（容器内监听端口，镜像固定）、`hostPort`（宿主映射端口，一律 5 位数、避开 8080/8081 等常用端口）。`mcp` 型转发容器 MCP 工具；`rest` 型由 JVM 薄包装容器 REST API（如 `jina_reader(uri) → markdown`）。
 - **工具清单来源规则**：谁控制变更谁静态——公有云 ProxyMcp 启动时 `listTools` 发现；容器 mcp 静态冒烟数据（镜像 pin 由我们控制）；rest 包装/native/host 代码声明；组合源启动时解析。
 - **端点**（ADR-0011）：单 `McpServer` + 每请求/会话按 URL 参数解析工具视图；双传输（`/mcp` Streamable HTTP + `/sse` HTTP+SSE）默认开、共享同一过滤（过滤是应用层，与传输无关）。
 - **URL 参数语法**：`includes`/`excludes`（复数），`[a,b]` 方括号列表，项 = 下划线平坦名（源名展开该源全部工具 / 工具名精确一个）；解析先精确匹配工具名、再按源名 `{source}_` 前缀展开；无参 = 全量；未知项静默忽略 + warn。

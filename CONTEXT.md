@@ -17,7 +17,7 @@
 | 工具视图 | Tool View | 一次 MCP 连接按 URL 参数解析出的工具子集。**工具永远注册在源里**，`listTools` 返回过滤后的视图给 agent |
 | 组合源 | Composite Source | YAML spec（`includes`/`excludes`）发布的派生源。可引用多个源、精确到工具；启动时静态解析、可嵌套、循环检测。URL 无关 |
 | 目录 | Catalog | `GET /xyz-hub/catalog`，机器可读的「源 + 工具」清单。数据三源汇合：代码声明 / 静态冒烟 / 启动发现 |
-| 清单 | Manifest | `manifests/mcp-images.yaml`（mvn 生成的构建产物）。`ContainerMcp` 按需启动容器的运行规范（`image`/`protocol`/`port`） |
+| 清单 | Manifest | `manifests/mcp-images.yaml`（mvn 生成的构建产物）。`ContainerMcp` 按需启动容器的运行规范（`image`/`protocol`/`port`/`hostPort`；`port`=容器内端口、`hostPort`=宿主映射端口 5 位数） |
 
 ### MCP 实现类型（四类）
 
@@ -25,7 +25,7 @@
 |---|---|---|
 | 原生 MCP | NativeMcp | 在 Hub JVM 内**薄实现**：包装 HTTP API（如 bocha）或官方 SDK。遵循薄实现原则，不重造引擎 |
 | 代理 MCP | ProxyMcp | 透明转发**公有云** HTTP MCP Server。仅支持远程 HTTP（Streamable HTTP），不用 stdio 子进程；认证字段经配置注入固定 header；工具清单**启动时发现**（上游不受控） |
-| 容器 MCP | ContainerMcp | 从本地 docker 按需拉起容器（本地无则按清单 pull）再接入。`ContainerSpec.protocol` 分两类：`mcp`（转发容器内 MCP 工具，如 markitdown-mcp / playwright-mcp）、`rest`（JVM 薄包装容器 REST API，如 jina） |
+| 容器 MCP | ContainerMcp | 从本地 docker 按需拉起容器（本地无则按清单 pull）再接入。`ContainerSpec.protocol` 分两类：`mcp`（转发容器内 MCP 工具，如 markitdown-mcp）、`rest`（JVM 薄包装容器 REST API，如 jina） |
 | 主机 MCP | HostMcp | 必须部署在 Agent/CLI 同宿主的 MCP（文件、宿主程序如 IM、真实浏览器交互）。**薄实现原则的例外**：可承载真引擎（如 playwright 非无头改页面注入翻译），但仍以官方 SDK 调用为主 |
 
 ### 部署范围
@@ -127,9 +127,8 @@ xyz-mcp-hub/
 │       ├── playwright                          ← 顶级工具模块：HostMcp 浏览器引擎（保留）
 │       ├── security                            ← SsrUrlGuard 等共享安全组件
 │       └── ui                                  ← 模块 2（Vaadin 管理界面，延后决策）
-├── sidecars/                   ← 其他项目：多语言薄 MCP 封装层，最终目标 = Dockerfile/镜像
-│   ├── markitdown/             （Dockerfile + pom，mvn install 构建 + 装入本地 docker）
-│   └── playwright/             （Dockerfile + pom）
+├── sidecars/                   ← 容器化 sidecar（本仓库构建的镜像；playwright 属 HostMcp 本机引擎，不在此）
+│   └── markitdown/             （Dockerfile + pom，mvn install 用 buildx 构建 + 装入本地 docker，#31）
 ├── manifests/
 │   └── mcp-images.yaml         ← mvn 生成的构建产物（ContainerMcp 按需启动容器的规范）
 ├── compose.yaml                ← 可选：起 hub 的便捷入口（非引擎启动方式）

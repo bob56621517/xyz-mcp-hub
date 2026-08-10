@@ -40,7 +40,7 @@
 | 源类型 | 工具清单来源 | 理由 |
 |---|---|---|
 | ProxyMcp（公有云） | 启动时发现（listTools） | 上游不受控，会换工具 |
-| ContainerMcp mcp（markitdown/playwright） | 静态冒烟数据 | 镜像由我们 pin，工具集与镜像版本绑定 |
+| ContainerMcp mcp（markitdown） | 静态冒烟数据 | 镜像由我们 pin，工具集与镜像版本绑定；playwright 属 HostMcp 本机引擎，不走容器（见 ADR-0012 修订） |
 | ContainerMcp rest（jina）/ NativeMcp / HostMcp | 静态（代码声明） | 工具就是我们的代码 |
 | 组合源 | 启动时静态解析 | 见 ADR-0011 |
 
