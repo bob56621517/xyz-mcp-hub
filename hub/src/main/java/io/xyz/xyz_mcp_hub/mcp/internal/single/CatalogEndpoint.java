@@ -17,7 +17,7 @@ import org.springframework.web.servlet.function.ServerResponse;
  * <p>每源：{@code name} / {@code type}（native/proxy/container/host/composite，小写）/
  * {@code protocol}（container 专有，mcp|rest，其余为 null）/ {@code scope}（host/network，小写）/
  * {@code tools}（带 {@code {source}_} 前缀的注册工具名，排序稳定）/ {@code base}（组合源溯源，
- * 非组合源为 null，#33 后填充）。</p>
+ * 非组合源为 null，#33 起组合源填充）。</p>
  *
  * <p>数据三源汇合（代码声明 + 静态冒烟 + 启动发现）：本期目录反映源注册表（{@link McpSourceRegistry}）
  * 中已注册的「代码声明」源（当前为 native 源）；目录直接读注册表，proxy / container 源迁入并注册进

@@ -51,9 +51,12 @@ public class McpSingleEndpointRegistrar implements SmartLifecycle {
 	private volatile boolean running = false;
 
 	public McpSingleEndpointRegistrar(List<McpEndpointProvider> providers,
-			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper) {
+			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper,
+			CompositeSourceProperties compositeSourceProperties) {
 		McpJsonMapper mcpJsonMapper = new JacksonMcpJsonMapper(jsonMapper);
-		this.server = new McpSingleServer(new McpSourceRegistry(providers), mcpJsonMapper);
+		// #33 组合源：mcp.specs 配置随普通源一并进注册表，发布为目录中的 composite 源
+		this.server = new McpSingleServer(
+				new McpSourceRegistry(providers, compositeSourceProperties.getSpecs()), mcpJsonMapper);
 		this.streamableTransport = WebMvcStreamableServerTransportProvider.builder()
 			.jsonMapper(mcpJsonMapper)
 			.mcpEndpoint(MCP_PATH)

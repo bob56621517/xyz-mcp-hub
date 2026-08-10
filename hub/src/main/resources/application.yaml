@@ -88,4 +88,16 @@ docker:
 #           - source: utils
 #             include: [currentDateTime]
 # 引用未启用/不可达源端点会跳过并告警；include/exclude 引用不存在的工具会启动 fail-fast。
-# 默认不声明任何 Space。
+# 默认不声明任何 Space（mcp.spaces 已被 mcp.specs 取代，见 ADR-0011 / issue #33，下）。
+# 组合源 specs（ADR-0011 / issue #33）：mcp.specs 定义一个派生源，发布进目录（type: composite，
+# 带 base 溯源），被 includes/excludes 引用时与普通源等效。项与 URL 参数同一套下划线平坦名
+# 语法——源名（bocha → 该源全部工具）、工具名（bocha_web_search → 精确一个）或组合源名（嵌套）；
+# 启动时静态解析，循环定义被拒 fail-fast。默认不声明任何组合源。
+#   mcp:
+#     specs:
+#       github-readonly:
+#         includes: [github]
+#         excludes: [github_create_issue]
+#       docs:                       # 嵌套：引用上方的组合源 + 普通源
+#         includes: [github-readonly, utils]
+# 未知的 includes/excludes 项静默忽略 + warn（不使连接失败）；组合源名与已注册源冲突会启动失败。
