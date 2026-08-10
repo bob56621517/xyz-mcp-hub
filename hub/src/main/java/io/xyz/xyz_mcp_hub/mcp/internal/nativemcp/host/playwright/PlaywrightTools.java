@@ -1,4 +1,4 @@
-package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright;
+package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.host.playwright;
 
 import java.util.List;
 import java.util.Map;
@@ -13,7 +13,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * Playwright 端点的工具集合：按官方 {@code @playwright/mcp} 工具集实现浏览器自动化。
+ * Playwright HostMcp 源的工具集合：按官方 {@code @playwright/mcp} 工具集实现浏览器自动化。
  *
  * <p>所有浏览器操作工具都要求 {@code sessionId}（由 {@code web_session(action=create)} 返回），
  * 按 sessionId 路由到隔离的浏览器上下文；无 sessionId 或会话已关闭/回收时返回明确错误。

@@ -6,7 +6,7 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.spec.McpSchema;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.playwright.PlaywrightTools;
+import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.host.playwright.PlaywrightTools;
 import io.xyz.xyz_mcp_hub.playwright.PlaywrightProperties;
 import io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry;
 import io.xyz.xyz_mcp_hub.playwright.internal.SharedChromium;
@@ -33,16 +33,24 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Playwright 端点集成测试：连接 {@code /mcp/builtin/playwright}，用无头 chromium 打开本地
+ * Playwright 端点集成测试（HostMcp 源，issue #36）：连接单端点
+ * {@code /xyz-hub/mcp?includes=[playwright]}，用无头 chromium 打开本地
  * 测试页，按 {@code docs/testing/mcp-service-test-guide.md} 对每个 {@code @Tool} 逐个真实
- * 调用并断言结果合理。会话租约模型下，每次连接先 {@code web_session(create)} 拿 sessionId，
- * 所有浏览器工具携带 sessionId 路由；并验证两会话隔离、无 sessionId 报错、TTL 回收与并发上限。
+ * 调用并断言结果合理。会话租约模型下，每次连接先 {@code playwright_web_session(create)} 拿
+ * sessionId，所有浏览器工具携带 sessionId 路由；并验证两会话隔离、无 sessionId 报错、
+ * TTL 回收与并发上限。
  *
  * <p>手工冒烟（非自动测试）：{@code ./mvnw exec:java -Dexec.mainClass=io.xyz.xyz_mcp_hub.McpPlaywrightEndpointTest -Dexec.classpathScope=test -Dvaadin.skip=true}</p>
  *
  * @requires-service chromium 需本地安装 playwright chromium 二进制（headless，见 README）
+ *
+ * <p>测试隔离：本类标 {@code @DirtiesContext(BEFORE_CLASS)} 强制用独立 Spring context。无此注解时
+ * 会复用共享 context（同 {@code @SpringBootTest(RANDOM_PORT)} 无自定义配置的类），完整套件中其他
+ * 测试类创建第二个 context 时（Vaadin/Atmosphere 全局状态）会把共享 context 的单端点 transport 置为
+ * {@code isClosing}，导致本类连 {@code /xyz-hub/mcp} 收到 503 "Server is shutting down"。</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.springframework.test.annotation.DirtiesContext(classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.BEFORE_CLASS)
 class McpPlaywrightEndpointTest {
 
 	private static final String PAGE_HTML = """
@@ -136,7 +144,7 @@ class McpPlaywrightEndpointTest {
 		if (client != null) {
 			if (sessionId != null) {
 				try {
-					callRaw("web_session", Map.of("action", "close", "sessionId", sessionId));
+					callRaw("playwright_web_session", Map.of("action", "close", "sessionId", sessionId));
 				}
 				catch (RuntimeException ignored) {
 					// 会话可能已被 TTL 回收或测试中途关闭，忽略
@@ -149,7 +157,7 @@ class McpPlaywrightEndpointTest {
 
 	private McpSyncClient newClient() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/mcp/builtin/playwright")
+			.endpoint("/xyz-hub/mcp?includes=[playwright]")
 			.build();
 		var c = McpClient.sync(transport).build();
 		c.initialize();
@@ -164,7 +172,7 @@ class McpPlaywrightEndpointTest {
 	}
 
 	private String createSession(McpSyncClient c) {
-		String text = callText(c, McpSchema.CallToolRequest.builder("web_session")
+		String text = callText(c, McpSchema.CallToolRequest.builder("playwright_web_session")
 			.arguments(Map.of("action", "create")).build());
 		// Spring AI 对工具返回值做 JSON 序列化，文本两侧带引号，提取 sessionId 时去掉
 		return text.substring(text.indexOf("sessionId: ") + "sessionId: ".length()).replace("\"", "");
@@ -194,15 +202,15 @@ class McpPlaywrightEndpointTest {
 	}
 
 	private String webSessionClose(String sid) {
-		return callRaw("web_session", Map.of("action", "close", "sessionId", sid));
+		return callRaw("playwright_web_session", Map.of("action", "close", "sessionId", sid));
 	}
 
 	private String webSessionList() {
-		return callRaw("web_session", Map.of("action", "list"));
+		return callRaw("playwright_web_session", Map.of("action", "list"));
 	}
 
 	private void navigate() {
-		callTool("browser_navigate", Map.of("url", pageUrl));
+		callTool("playwright_browser_navigate", Map.of("url", pageUrl));
 	}
 
 	// ---- 工具注册 ----
@@ -212,14 +220,14 @@ class McpPlaywrightEndpointTest {
 		client = connect();
 		var tools = client.listTools().tools();
 		assertThat(tools).extracting(McpSchema.Tool::name)
-			.contains("web_session", "browser_navigate", "browser_go_back", "browser_go_forward",
-					"browser_snapshot", "browser_take_screenshot", "browser_click",
-					"browser_hover", "browser_type", "browser_press_key",
-					"browser_select_option", "browser_fill_form", "browser_resize",
-					"browser_close", "browser_tabs", "browser_handle_dialog",
-					"browser_network_requests", "browser_network_request",
-					"browser_console_messages", "browser_evaluate", "browser_wait_for",
-					"browser_find", "browser_drag", "browser_file_upload");
+			.contains("playwright_web_session", "playwright_browser_navigate", "playwright_browser_go_back", "playwright_browser_go_forward",
+					"playwright_browser_snapshot", "playwright_browser_take_screenshot", "playwright_browser_click",
+					"playwright_browser_hover", "playwright_browser_type", "playwright_browser_press_key",
+					"playwright_browser_select_option", "playwright_browser_fill_form", "playwright_browser_resize",
+					"playwright_browser_close", "playwright_browser_tabs", "playwright_browser_handle_dialog",
+					"playwright_browser_network_requests", "playwright_browser_network_request",
+					"playwright_browser_console_messages", "playwright_browser_evaluate", "playwright_browser_wait_for",
+					"playwright_browser_find", "playwright_browser_drag", "playwright_browser_file_upload");
 	}
 
 	// ---- 导航 / 快照 / 截图 ----
@@ -228,7 +236,7 @@ class McpPlaywrightEndpointTest {
 	void navigateThenSnapshotShowsPageText() {
 		client = connect();
 		navigate();
-		String snapshot = callTool("browser_snapshot", Map.of());
+		String snapshot = callTool("playwright_browser_snapshot", Map.of());
 		assertThat(snapshot).contains("Playwright Test Page");
 		assertThat(snapshot).contains("count: 0");
 	}
@@ -237,7 +245,7 @@ class McpPlaywrightEndpointTest {
 	void navigateThenScreenshotReturnsPngImage() {
 		client = connect();
 		navigate();
-		String screenshot = callTool("browser_take_screenshot", Map.of());
+		String screenshot = callTool("playwright_browser_take_screenshot", Map.of());
 		// Spring AI 对工具返回值做 JSON 序列化，文本两侧带引号，故用 contains 提取
 		assertThat(screenshot).contains("data:image/png;base64,");
 		String base64 = screenshot.substring(screenshot.indexOf("data:image/png;base64,")
@@ -252,12 +260,12 @@ class McpPlaywrightEndpointTest {
 	void goBackAndForwardTraverseHistory() {
 		client = connect();
 		navigate();
-		callTool("browser_navigate", Map.of("url", pageUrl + "page2"));
-		assertThat(callTool("browser_go_back", Map.of())).contains("返回上一页");
-		assertThat(callTool("browser_evaluate", Map.of("function", "location.pathname")))
+		callTool("playwright_browser_navigate", Map.of("url", pageUrl + "page2"));
+		assertThat(callTool("playwright_browser_go_back", Map.of())).contains("返回上一页");
+		assertThat(callTool("playwright_browser_evaluate", Map.of("function", "location.pathname")))
 			.contains("/");
-		assertThat(callTool("browser_go_forward", Map.of())).contains("前进到下一页");
-		assertThat(callTool("browser_evaluate", Map.of("function", "location.pathname")))
+		assertThat(callTool("playwright_browser_go_forward", Map.of())).contains("前进到下一页");
+		assertThat(callTool("playwright_browser_evaluate", Map.of("function", "location.pathname")))
 			.contains("/page2");
 	}
 
@@ -267,12 +275,12 @@ class McpPlaywrightEndpointTest {
 	void clickAndTypeUpdateLocalPage() {
 		client = connect();
 		navigate();
-		callTool("browser_click", Map.of("target", "#counter"));
-		assertThat(callTool("browser_evaluate",
+		callTool("playwright_browser_click", Map.of("target", "#counter"));
+		assertThat(callTool("playwright_browser_evaluate",
 				Map.of("function", "document.getElementById('counter').textContent")))
 			.contains("count: 1");
-		callTool("browser_type", Map.of("target", "#name", "text", "hello"));
-		assertThat(callTool("browser_evaluate",
+		callTool("playwright_browser_type", Map.of("target", "#name", "text", "hello"));
+		assertThat(callTool("playwright_browser_evaluate",
 				Map.of("function", "document.getElementById('name').value")))
 			.contains("hello");
 	}
@@ -281,14 +289,14 @@ class McpPlaywrightEndpointTest {
 	void selectOptionAndFillForm() {
 		client = connect();
 		navigate();
-		callTool("browser_select_option", Map.of("target", "#color", "values", List.of("green")));
-		assertThat(callTool("browser_evaluate",
+		callTool("playwright_browser_select_option", Map.of("target", "#color", "values", List.of("green")));
+		assertThat(callTool("playwright_browser_evaluate",
 				Map.of("function", "document.getElementById('color').value")))
 			.contains("green");
-		callTool("browser_fill_form", Map.of("fields", List.of(
+		callTool("playwright_browser_fill_form", Map.of("fields", List.of(
 				Map.of("target", "#name", "value", "hello"),
 				Map.of("target", "#agree", "value", "true", "type", "checkbox"))));
-		assertThat(callTool("browser_evaluate", Map.of("function",
+		assertThat(callTool("playwright_browser_evaluate", Map.of("function",
 				"document.getElementById('name').value + '|' + document.getElementById('agree').checked")))
 			.contains("hello|true");
 	}
@@ -297,10 +305,10 @@ class McpPlaywrightEndpointTest {
 	void hoverPressKeyAndResize() {
 		client = connect();
 		navigate();
-		assertThat(callTool("browser_hover", Map.of("target", "#counter"))).contains("已悬停");
-		assertThat(callTool("browser_press_key", Map.of("key", "Tab"))).contains("已按键");
-		callTool("browser_resize", Map.of("width", 800, "height", 600));
-		assertThat(callTool("browser_evaluate", Map.of("function", "window.innerWidth")))
+		assertThat(callTool("playwright_browser_hover", Map.of("target", "#counter"))).contains("已悬停");
+		assertThat(callTool("playwright_browser_press_key", Map.of("key", "Tab"))).contains("已按键");
+		callTool("playwright_browser_resize", Map.of("width", 800, "height", 600));
+		assertThat(callTool("playwright_browser_evaluate", Map.of("function", "window.innerWidth")))
 			.contains("800");
 	}
 
@@ -310,11 +318,11 @@ class McpPlaywrightEndpointTest {
 	void waitForTextAppearanceAndDisappearance() {
 		client = connect();
 		navigate();
-		assertThat(callTool("browser_wait_for", Map.of("time", 1))).contains("已等待");
-		assertThat(callTool("browser_wait_for", Map.of("textGone", "动态文本")))
+		assertThat(callTool("playwright_browser_wait_for", Map.of("time", 1))).contains("已等待");
+		assertThat(callTool("playwright_browser_wait_for", Map.of("textGone", "动态文本")))
 			.contains("等待到文本消失");
-		callTool("browser_click", Map.of("target", "#show-dynamic"));
-		assertThat(callTool("browser_wait_for", Map.of("text", "动态文本")))
+		callTool("playwright_browser_click", Map.of("target", "#show-dynamic"));
+		assertThat(callTool("playwright_browser_wait_for", Map.of("text", "动态文本")))
 			.contains("等待到文本出现");
 	}
 
@@ -322,26 +330,26 @@ class McpPlaywrightEndpointTest {
 	void handleDialogAutoAcceptsAlert() {
 		client = connect();
 		navigate();
-		callTool("browser_handle_dialog", Map.of("accept", true));
-		callTool("browser_click", Map.of("target", "#trigger-alert"));
-		assertThat(callTool("browser_evaluate", Map.of("function", "1 + 1"))).contains("2");
+		callTool("playwright_browser_handle_dialog", Map.of("accept", true));
+		callTool("playwright_browser_click", Map.of("target", "#trigger-alert"));
+		assertThat(callTool("playwright_browser_evaluate", Map.of("function", "1 + 1"))).contains("2");
 	}
 
 	@Test
 	void networkRequestsAndConsoleMessages() {
 		client = connect();
 		navigate();
-		callTool("browser_click", Map.of("target", "#fetch-api"));
-		callTool("browser_wait_for", Map.of("time", 0.5));
-		assertThat(callTool("browser_network_requests", Map.of("filter", "/api/ping")))
+		callTool("playwright_browser_click", Map.of("target", "#fetch-api"));
+		callTool("playwright_browser_wait_for", Map.of("time", 0.5));
+		assertThat(callTool("playwright_browser_network_requests", Map.of("filter", "/api/ping")))
 			.contains("/api/ping").contains("HTTP 200");
 		// index 基于会话内全量记录序号；这里验证详情读取（完整记录 + response-headers 部分）
-		assertThat(callTool("browser_network_request", Map.of("index", 1)))
+		assertThat(callTool("playwright_browser_network_request", Map.of("index", 1)))
 			.contains("method: GET").contains("url: http://");
-		assertThat(callTool("browser_network_request",
+		assertThat(callTool("playwright_browser_network_request",
 				Map.of("index", 1, "part", "response-headers"))).contains("content-type");
-		callTool("browser_click", Map.of("target", "#trigger-console"));
-		assertThat(callTool("browser_console_messages", Map.of("level", "info")))
+		callTool("playwright_browser_click", Map.of("target", "#trigger-console"));
+		assertThat(callTool("playwright_browser_console_messages", Map.of("level", "info")))
 			.contains("hello-console");
 	}
 
@@ -351,14 +359,14 @@ class McpPlaywrightEndpointTest {
 	void tabsListNewSelectClose() {
 		client = connect();
 		navigate();
-		assertThat(callTool("browser_tabs", Map.of("action", "list")))
+		assertThat(callTool("playwright_browser_tabs", Map.of("action", "list")))
 			.contains("Playwright Test Page");
-		callTool("browser_tabs", Map.of("action", "new", "url", pageUrl));
-		assertThat(callTool("browser_tabs", Map.of("action", "list"))).contains("共 2 个");
-		callTool("browser_tabs", Map.of("action", "select", "index", 0));
-		assertThat(callTool("browser_tabs", Map.of("action", "close", "index", 1)))
+		callTool("playwright_browser_tabs", Map.of("action", "new", "url", pageUrl));
+		assertThat(callTool("playwright_browser_tabs", Map.of("action", "list"))).contains("共 2 个");
+		callTool("playwright_browser_tabs", Map.of("action", "select", "index", 0));
+		assertThat(callTool("playwright_browser_tabs", Map.of("action", "close", "index", 1)))
 			.contains("已关闭标签页 [1]");
-		assertThat(callTool("browser_tabs", Map.of("action", "close", "index", 99)))
+		assertThat(callTool("playwright_browser_tabs", Map.of("action", "close", "index", 99)))
 			.contains("不存在");
 	}
 
@@ -366,7 +374,7 @@ class McpPlaywrightEndpointTest {
 	void findLocatesTextWithContext() {
 		client = connect();
 		navigate();
-		String found = callTool("browser_find", Map.of("text", "Playwright Test Page"));
+		String found = callTool("playwright_browser_find", Map.of("text", "Playwright Test Page"));
 		assertThat(found).contains("Playwright Test Page");
 	}
 
@@ -374,8 +382,8 @@ class McpPlaywrightEndpointTest {
 	void dragAndDropElement() {
 		client = connect();
 		navigate();
-		callTool("browser_drag", Map.of("from", "#draggable", "to", "#dropzone"));
-		assertThat(callTool("browser_evaluate",
+		callTool("playwright_browser_drag", Map.of("from", "#draggable", "to", "#dropzone"));
+		assertThat(callTool("playwright_browser_evaluate",
 				Map.of("function", "document.getElementById('dropzone').textContent")))
 			.contains("dropped");
 	}
@@ -386,8 +394,8 @@ class McpPlaywrightEndpointTest {
 		Files.writeString(file, "file-content");
 		client = connect();
 		navigate();
-		callTool("browser_file_upload", Map.of("target", "#file", "paths", List.of(file.toString())));
-		assertThat(callTool("browser_evaluate",
+		callTool("playwright_browser_file_upload", Map.of("target", "#file", "paths", List.of(file.toString())));
+		assertThat(callTool("playwright_browser_evaluate",
 				Map.of("function", "document.getElementById('file').files.length")))
 			.contains("1");
 	}
@@ -396,9 +404,9 @@ class McpPlaywrightEndpointTest {
 	void closeThenNavigateReopensPage() {
 		client = connect();
 		navigate();
-		assertThat(callTool("browser_close", Map.of())).contains("已关闭标签页");
-		callTool("browser_navigate", Map.of("url", pageUrl));
-		assertThat(callTool("browser_snapshot", Map.of())).contains("Playwright Test Page");
+		assertThat(callTool("playwright_browser_close", Map.of())).contains("已关闭标签页");
+		callTool("playwright_browser_navigate", Map.of("url", pageUrl));
+		assertThat(callTool("playwright_browser_snapshot", Map.of())).contains("Playwright Test Page");
 	}
 
 	// ---- 会话租约：创建 / 关闭 / 无 sessionId 报错 ----
@@ -413,7 +421,7 @@ class McpPlaywrightEndpointTest {
 		assertThat(webSessionClose(second)).contains("已关闭");
 		assertThat(webSessionList()).contains("1");
 		// 关闭后的会话再操作应报错
-		assertThat(callRaw("browser_navigate", Map.of("sessionId", second, "url", pageUrl)))
+		assertThat(callRaw("playwright_browser_navigate", Map.of("sessionId", second, "url", pageUrl)))
 			.contains("不存在或已被关闭");
 		// close 不存在的会话返回提示
 		assertThat(webSessionClose("ws-99999")).contains("不存在");
@@ -422,7 +430,7 @@ class McpPlaywrightEndpointTest {
 	@Test
 	void missingSessionIdReturnsClearError() {
 		client = connect();
-		String text = callRaw("browser_navigate", Map.of("url", pageUrl));
+		String text = callRaw("playwright_browser_navigate", Map.of("url", pageUrl));
 		assertThat(text).contains("缺少 sessionId");
 	}
 
@@ -433,21 +441,21 @@ class McpPlaywrightEndpointTest {
 		try {
 			// 两会话各自导航到同一首页（隔离 BrowserContext，互不共享）
 			navigate();
-			callRaw("browser_navigate", Map.of("sessionId", sessionB, "url", pageUrl));
+			callRaw("playwright_browser_navigate", Map.of("sessionId", sessionB, "url", pageUrl));
 			// DOM 状态隔离：A 点击计数 +1，B 不受影响
-			callTool("browser_click", Map.of("target", "#counter"));
-			assertThat(callTool("browser_evaluate",
+			callTool("playwright_browser_click", Map.of("target", "#counter"));
+			assertThat(callTool("playwright_browser_evaluate",
 					Map.of("function", "document.getElementById('counter').textContent")))
 				.contains("count: 1");
-			assertThat(callRaw("browser_evaluate", Map.of("sessionId", sessionB,
+			assertThat(callRaw("playwright_browser_evaluate", Map.of("sessionId", sessionB,
 					"function", "document.getElementById('counter').textContent")))
 				.contains("count: 0");
 			// 存储隔离：B 写入 localStorage，A 读不到，证明 cookie/存储独立
-			callRaw("browser_evaluate", Map.of("sessionId", sessionB,
+			callRaw("playwright_browser_evaluate", Map.of("sessionId", sessionB,
 					"function", "localStorage.setItem('k', 'b-value')"));
-			assertThat(callTool("browser_evaluate", Map.of("function", "localStorage.getItem('k')")))
+			assertThat(callTool("playwright_browser_evaluate", Map.of("function", "localStorage.getItem('k')")))
 				.contains("null");
-			assertThat(callRaw("browser_evaluate", Map.of("sessionId", sessionB,
+			assertThat(callRaw("playwright_browser_evaluate", Map.of("sessionId", sessionB,
 					"function", "localStorage.getItem('k')")))
 				.contains("b-value");
 		}
@@ -461,12 +469,12 @@ class McpPlaywrightEndpointTest {
 		client = connect();
 		String sessionB = createSession(client);
 		navigate();
-		callRaw("browser_navigate", Map.of("sessionId", sessionB, "url", pageUrl));
+		callRaw("playwright_browser_navigate", Map.of("sessionId", sessionB, "url", pageUrl));
 		assertThat(webSessionClose(sessionB)).contains("已关闭");
 		// 关闭 B 后，主会话 A 仍可用（会话间生命周期互不影响）
-		assertThat(callTool("browser_evaluate", Map.of("function", "location.pathname"))).contains("/");
+		assertThat(callTool("playwright_browser_evaluate", Map.of("function", "location.pathname"))).contains("/");
 		// 已关闭的会话再操作报错
-		assertThat(callRaw("browser_snapshot", Map.of("sessionId", sessionB)))
+		assertThat(callRaw("playwright_browser_snapshot", Map.of("sessionId", sessionB)))
 			.contains("不存在或已被关闭");
 	}
 
@@ -480,13 +488,13 @@ class McpPlaywrightEndpointTest {
 			ExecutorService pool = Executors.newFixedThreadPool(2);
 			try {
 				Future<String> fa = pool.submit((Callable<String>) () -> {
-					callTool("browser_navigate", Map.of("url", pageUrl));
-					return callTool("browser_evaluate", Map.of("function", "location.pathname"));
+					callTool("playwright_browser_navigate", Map.of("url", pageUrl));
+					return callTool("playwright_browser_evaluate", Map.of("function", "location.pathname"));
 				});
 				Future<String> fb = pool.submit((Callable<String>) () -> {
-					callRaw(clientB, "browser_navigate",
+					callRaw(clientB, "playwright_browser_navigate",
 							Map.of("sessionId", sessionB, "url", pageUrl + "page2"));
-					return callRaw(clientB, "browser_evaluate",
+					return callRaw(clientB, "playwright_browser_evaluate",
 							Map.of("sessionId", sessionB, "function", "location.pathname"));
 				});
 				assertThat(fa.get(60, TimeUnit.SECONDS)).contains("/");

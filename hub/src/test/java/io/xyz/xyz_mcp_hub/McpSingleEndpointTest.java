@@ -131,6 +131,16 @@ class McpSingleEndpointTest {
 		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_web_search", "bocha_ai_search");
 	}
 
+	// ---- 验收：includes=[playwright] 只暴露 HostMcp playwright 源浏览器工具集（issue #36） ----
+
+	@Test
+	void includesPlaywrightExposesHostMcpBrowserToolsOnly() {
+		client = connect("/xyz-hub/mcp?includes=[playwright]");
+		assertThat(toolNames()).contains("playwright_web_session", "playwright_browser_navigate",
+				"playwright_browser_snapshot", "playwright_browser_take_screenshot");
+		assertThat(toolNames()).doesNotContain("bocha_web_search", "utils_currentDateTime");
+	}
+
 	// ---- 验收 2：无参数 = 全量工具（向后兼容） ----
 
 	@Test
@@ -138,7 +148,7 @@ class McpSingleEndpointTest {
 		client = connect("/xyz-hub/mcp");
 		List<String> names = toolNames();
 		assertThat(names).contains("bocha_web_search", "bocha_ai_search", "utils_currentDateTime");
-		// 全量 = 全部已注册源工具的超集，至少包含首迁移的两个原生源
+		// 全量 = 全部已注册源工具的超集，至少包含首迁移的两个原生源与 HostMcp playwright 源
 		assertThat(names.size()).isGreaterThanOrEqualTo(3);
 	}
 

@@ -72,7 +72,7 @@ class McpPlaywrightSessionTtlTest {
 
 	private void connect() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/mcp/builtin/playwright")
+			.endpoint("/xyz-hub/mcp?includes=[playwright]")
 			.build();
 		var c = McpClient.sync(transport).build();
 		c.initialize();
@@ -87,7 +87,7 @@ class McpPlaywrightSessionTtlTest {
 	}
 
 	private String createSession() {
-		String text = callText("web_session", Map.of("action", "create"));
+		String text = callText("playwright_web_session", Map.of("action", "create"));
 		// Spring AI 对工具返回值做 JSON 序列化，文本两侧带引号，提取 sessionId 时去掉
 		return text.substring(text.indexOf("sessionId: ") + "sessionId: ".length()).replace("\"", "");
 	}
@@ -98,9 +98,9 @@ class McpPlaywrightSessionTtlTest {
 		String sid = createSession();
 		// 超过 ttl(1s) 与一个扫描周期(1s)，后台扫描应已回收
 		Thread.sleep(3500);
-		String result = callText("browser_snapshot", Map.of("sessionId", sid));
+		String result = callText("playwright_browser_snapshot", Map.of("sessionId", sid));
 		assertThat(result).contains("不存在或已被关闭");
-		assertThat(callText("web_session", Map.of("action", "list"))).contains("0");
+		assertThat(callText("playwright_web_session", Map.of("action", "list"))).contains("0");
 	}
 
 	@Test
@@ -110,9 +110,9 @@ class McpPlaywrightSessionTtlTest {
 		// 持续操作刷新 lastAccess，会话不应被回收
 		for (int i = 0; i < 3; i++) {
 			Thread.sleep(400);
-			callText("browser_snapshot", Map.of("sessionId", sid));
+			callText("playwright_browser_snapshot", Map.of("sessionId", sid));
 		}
-		assertThat(callText("web_session", Map.of("action", "list"))).contains("1");
-		callText("web_session", Map.of("action", "close", "sessionId", sid));
+		assertThat(callText("playwright_web_session", Map.of("action", "list"))).contains("1");
+		callText("playwright_web_session", Map.of("action", "close", "sessionId", sid));
 	}
 }
