@@ -6,7 +6,7 @@ import java.util.Locale;
  * 源类型（目录 API 元数据，ADR-0011 / issue #34）：目录中每个源的 {@code type} 字段取值。
  *
  * <ul>
- * <li>{@link #NATIVE} — 原生 MCP：Hub JVM 内薄实现（包装 HTTP API/SDK，如 bocha / utils / fetch）</li>
+ * <li>{@link #NATIVE} — 原生 MCP：Hub JVM 内薄实现（包装 HTTP API/SDK，如 bocha / utils）</li>
  * <li>{@link #PROXY} — 代理 MCP：转发公有云 HTTP MCP Server（工具启动时发现）</li>
  * <li>{@link #CONTAINER} — 容器 MCP：本地容器按需拉起后接入（{@code protocol: mcp | rest}）</li>
  * <li>{@link #HOST} — 主机 MCP：必须与 Agent/CLI 同宿主的服务（薄实现原则的例外）</li>

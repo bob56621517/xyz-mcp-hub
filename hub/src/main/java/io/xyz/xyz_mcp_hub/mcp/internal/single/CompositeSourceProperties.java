@@ -15,8 +15,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>默认不声明任何组合源（空 map，行为与未配置完全一致）；声明后由 {@link McpSourceRegistry}
  * 启动时静态解析并发布为目录中的 {@code type: composite} 源，被 {@code includes} 引用时与普通源等效。
- * 由 {@code @ConfigurationPropertiesScan} 扫描注册（同 {@code DockerProperties} / {@code MarkitdownProperties}
- * / {@code PlaywrightProperties}）。</p>
+ * 由 {@code @ConfigurationPropertiesScan} 扫描注册（同 {@code DockerProperties} / {@code PlaywrightProperties}）。</p>
  */
 @ConfigurationProperties(prefix = "mcp")
 public class CompositeSourceProperties {
