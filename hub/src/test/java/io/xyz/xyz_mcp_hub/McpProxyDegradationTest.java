@@ -16,7 +16,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * ProxyMcp 上游不可达 → 源降级集成测试（#35，可仿 {@code McpGracefulDegradationTest}）。
+ * ProxyMcp 上游不可达 → 源降级集成测试（#35）。
  *
  * <p>三个公共 proxy 源（context7 / grep-app / wikidata）全部指向不可达地址（localhost:1，必然
  * Connection refused），验证启动时 {@code listTools} 发现失败时：应用照常启动、单端点

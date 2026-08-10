@@ -28,11 +28,6 @@ class CatalogEndpointTest {
 		}
 
 		@Override
-		public String getPath() {
-			return "/fake";
-		}
-
-		@Override
 		public Scope getScope() {
 			return Scope.NETWORK;
 		}

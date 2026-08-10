@@ -1,7 +1,6 @@
 package io.xyz.xyz_mcp_hub;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -44,7 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
 /**
  * ContainerMcp markitdown 源端点集成测试（#37，主 seam）：经真实 {@code /xyz-hub/mcp} 端点验证
  * {@code includes=markitdown} 暴露 {@code markitdown_convert_to_markdown}、工具调用转发到容器内 MCP
- * 端点、SSRF 预检拦截内网地址、旧多端点不暴露容器源（HubMcpRegistrar 跳过）。
+ * 端点、SSRF 预检拦截内网地址。（旧多端点路径 404 契约由 {@code McpOldEndpointsRemovedTest} 覆盖。）
  *
  * <p>不启真实 docker：{@code docker.enabled=false} 关掉真实容器运行时，@TestConfiguration 注入 fake
  * {@link ContainerManager}（返回假句柄）与指向内嵌模拟上游的 {@link ContainerEndpoint}。内嵌上游
@@ -159,16 +158,6 @@ class MarkitdownContainerMcpEndpointTest {
 		var text = (McpSchema.TextContent) result.content().get(0);
 		assertThat(text.text()).contains("SSRF 防护拦截");
 		assertThat(MarkitdownUpstreamRegistrar.LAST_URI.get()).isNull();
-	}
-
-	// ---- 验收：旧多端点不暴露容器源（HubMcpRegistrar 跳过 ContainerMcp） ----
-
-	@Test
-	void containerSourceNotExposedOnLegacyEndpoint() {
-		assertThatThrownBy(() -> {
-			var c = connect("/mcp/builtin/containermcp/markitdown");
-			c.listTools();
-		}).isInstanceOf(Exception.class);
 	}
 
 	/**

@@ -16,7 +16,7 @@
 透明代理外部公有云 MCP / HTTP 的服务（如 github、context7、grep.app、wikidata）。
 
 1. **mock 联通测试（必选）**：用 JDK `HttpServer` 或内嵌 MCP Server 模拟上游，**无外部依赖、无需真实 key**，验证 listTools 透传 + callTool 转发链路走通即可（含 isError 透传、子集过滤、认证注入、优雅降级）。
-   - 示例：`McpProxyEndpointTest`（内嵌上游 MCP）、`McpBochaEndpointTest`（HttpServer mock 博查 API）、`McpGracefulDegradationTest`（上游不可达跳过）。
+   - 示例：`McpProxySingleEndpointTest`（内嵌上游 MCP）、`McpBochaEndpointTest`（HttpServer mock 博查 API）、`McpProxyDegradationTest`（上游不可达 → 源降级）。
 2. **手工具体测试（可选但推荐）**：依赖真实外部 web + token 的具体调用，写成 **`main` 函数放入对应服务的单元测试类内**；JUnit 不执行 `main`，不会被误调用；用户或 AI 开发时手工运行，验证时使用。
 
 ## main 冒烟函数约定

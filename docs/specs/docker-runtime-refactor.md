@@ -50,7 +50,7 @@
 - **工具清单来源规则**：谁控制变更谁静态——公有云 ProxyMcp 启动时 `listTools` 发现；容器 mcp 静态冒烟数据（镜像 pin 由我们控制）；rest 包装/native/host 代码声明；组合源启动时解析。
 - **端点**（ADR-0011）：单 `McpServer` + 每请求/会话按 URL 参数解析工具视图；双传输（`/mcp` Streamable HTTP + `/sse` HTTP+SSE）默认开、共享同一过滤（过滤是应用层，与传输无关）。
 - **URL 参数语法**：`includes`/`excludes`（复数），`[a,b]` 方括号列表，项 = 下划线平坦名（源名展开该源全部工具 / 工具名精确一个）；解析先精确匹配工具名、再按源名 `{source}_` 前缀展开；无参 = 全量；未知项静默忽略 + warn。
-- **组合源（specs）**：`mcp.specs` YAML（`specName: {includes, excludes}`）→ 发布新源入目录；启动时静态解析、可嵌套、发布时循环检测；与普通源同等被 `includes` 引用；`SpaceDefinition`/`SpaceSource` VO 保留、`path` 字段退役。
+- **组合源（specs）**：`mcp.specs` YAML（`specName: {includes, excludes}`）→ 发布新源入目录；启动时静态解析、可嵌套、发布时循环检测；与普通源同等被 `includes` 引用。组合端点 Space 的 VO/SPI（`SpaceDefinition`/`SpaceSource`/`SpaceDefinitionSource`）已随旧多端点整体移除（issue #39），组合能力全部由 specs 承担。
 - **目录 API**：`GET /xyz-hub/catalog`，每源含 `name`/`type`（native/proxy/container/host/composite）/`protocol`（container 专有）/`scope`/`tools`，组合源带 `base` 溯源；数据三源汇合（代码声明 + 静态冒烟 + 启动发现）；无认证、仅本地可读。
 - **仓库结构**（ADR-0012）：根聚合 pom + `hub/` + `sidecars/{markitdown,playwright}` + `manifests/` + `compose.yaml`（可选，仅起 hub）；hub 标准 Spring Boot；`mvn install` 只构建 + 安装 sidecar 镜像（buildx，各 sidecar 模块 pom 触发）；`manifests/mcp-images.yaml` = mvn 生成的运行规范。
 - **docker 顶级模块**：容器生命周期管理（首用拉起/健康检查/闲置回收/防重拉/关闭销毁），与 `playwright` 同级；`ContainerMcp` 经它按需起容器（jina 从 GHCR pull，sidecar 从本地镜像）。
@@ -66,7 +66,7 @@
    - 双传输：`/mcp` 与 `/sse` 均连通、过滤行为一致。
    - 目录 API：`GET /xyz-hub/catalog` 形状（type/protocol/scope/tools/base 溯源）。
    - SSRF：用户 URL 工具（jina_reader 等）传内网/保留段 URL 被拒并返回友好文本。
-   - 先例：`McpFetchEndpointTest` / `McpProxyEndpointTest` / `McpSpaceEndpointTest` / `McpUtilsEndpointTest`。
+   - 先例：`McpSingleEndpointTest` / `McpCompositeSourceIntegrationTest` / `McpCatalogEndpointTest` / `McpGithubEndpointTest` / `McpBochaEndpointTest` / `McpUtilsEndpointTest` / `McpOldEndpointsRemovedTest`（旧端点 404 契约）。
 2. **次 seam A = `ContainerManager`（docker 模块）可注入/mock**：单测用 fake（返回假 `baseUrl`），验证 ContainerMcp 装配与工具视图，**不启 docker**；真实容器链路（拉起 jina/markitdown → 转发 → 闲置回收）按 `@requires-docker` 手工 main 冒烟（按 `docs/testing/mcp-service-test-guide.md`），运行结果贴 issue。
    - 先例：`MarkitdownServerTest`（生命周期 mock 手法）、`FetchServiceTest`（本地 HttpServer）。
 3. **次 seam B = SSRF 守卫**：`SsrUrlGuardTest` 迁至 `security` 包沿用（完整保留）。
@@ -85,6 +85,7 @@
 
 ## Further Notes
 
+- **实现状态**：全部子议题（#29~#39）已合入。旧多端点（`/mcp/builtin/*`、`/mcp/server/*`、`/mcp/config/*`）与 Space 组合端点已随 #39 整体移除（HTTP 404，无重定向），仅剩单端点 `/xyz-hub/mcp` + `/xyz-hub/sse` + 目录 `/xyz-hub/catalog`。
 - 本 spec **取代 #22/#24/#25/#26 方向**（content 引擎与 fetch 门面退役），并取代 ADR-0003（NativeMcp 为主）与 ADR-0008（组合端点 Space 命名空间）。
 - 权威记录：`REFACTOR-HANDOFF.md` + `docs/adr/0009~0012` + 本文件。
 - **彻底重构、无兼容性保证**：旧端点/旧配置干净断掉，项目当前无生产用户。

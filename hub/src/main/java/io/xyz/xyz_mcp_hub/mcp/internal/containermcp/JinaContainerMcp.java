@@ -53,11 +53,6 @@ public class JinaContainerMcp extends ContainerMcp {
 	}
 
 	@Override
-	public String getPath() {
-		return "/mcp/builtin/containermcp/jina";
-	}
-
-	@Override
 	protected Protocol protocol() {
 		return Protocol.REST;
 	}

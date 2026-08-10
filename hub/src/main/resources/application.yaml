@@ -61,17 +61,7 @@ docker:
   start-timeout-seconds: 60
   pull-timeout-seconds: 300
 
-# 配置驱动的组合端点 Space（见 ADR-0008）：从已注册端点引用工具聚合为独立端点。
-# 在此声明 mcp.spaces 即启用，schema 与示例见 docs/adr/0008-composed-space-config.md：
-#   mcp:
-#     spaces:
-#       devops:
-#         sources:
-#           - source: github-readonly
-#           - source: utils
-#             include: [currentDateTime]
-# 引用未启用/不可达源端点会跳过并告警；include/exclude 引用不存在的工具会启动 fail-fast。
-# 默认不声明任何 Space（mcp.spaces 已被 mcp.specs 取代，见 ADR-0011 / issue #33，下）。
+# 旧配置驱动的组合端点 Space（ADR-0008）已整体移除（issue #39），被组合源 specs 取代。
 # 组合源 specs（ADR-0011 / issue #33）：mcp.specs 定义一个派生源，发布进目录（type: composite，
 # 带 base 溯源），被 includes/excludes 引用时与普通源等效。项与 URL 参数同一套下划线平坦名
 # 语法——源名（bocha → 该源全部工具）、工具名（bocha_web_search → 精确一个）或组合源名（嵌套）；

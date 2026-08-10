@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 公共 Proxy 提供者单元测试：守护默认上游 URL 与端点元数据。
+ * 公共 Proxy 提供者单元测试：守护默认上游 URL、源名（单端点 includes 引用单元）与免认证元数据。
  * 不加载 Spring 上下文，构造注入任意 URL 验证 getter 行为。
  *
  * <p>无外部依赖：纯内存单元测试，不发起网络请求。</p>
@@ -24,21 +24,26 @@ class NetworkProxyProviderUnitTest {
 	}
 
 	@Test
-	void metadataMatchesPublicContract() {
+	void namesAndUpstreamsMatchPublicContract() {
 		var context7 = new Context7McpProvider("http://localhost:1/mcp");
 		assertThat(context7.getName()).isEqualTo("context7");
-		assertThat(context7.getPath()).isEqualTo("/mcp/builtin/context7");
 		assertThat(context7.getUpstreamUrl()).isEqualTo("http://localhost:1/mcp");
 
 		var grepApp = new GrepAppMcpProvider("http://localhost:1/mcp");
 		assertThat(grepApp.getName()).isEqualTo("grep-app");
-		assertThat(grepApp.getPath()).isEqualTo("/mcp/builtin/grep-app");
 		assertThat(grepApp.getUpstreamUrl()).isEqualTo("http://localhost:1/mcp");
 
 		var wikidata = new WikidataMcpProvider("http://localhost:1/mcp");
 		assertThat(wikidata.getName()).isEqualTo("wikidata");
-		assertThat(wikidata.getPath()).isEqualTo("/mcp/builtin/wikidata");
 		assertThat(wikidata.getUpstreamUrl()).isEqualTo("http://localhost:1/mcp");
+	}
+
+	@Test
+	void publicProvidersSendNoAuthHeaders() {
+		// 公共 proxy 均为免认证场景（ADR-0007 一般场景），auth header 恒为空
+		assertThat(new Context7McpProvider("http://localhost:1/mcp").getAuthHeaders()).isEmpty();
+		assertThat(new GrepAppMcpProvider("http://localhost:1/mcp").getAuthHeaders()).isEmpty();
+		assertThat(new WikidataMcpProvider("http://localhost:1/mcp").getAuthHeaders()).isEmpty();
 	}
 
 }

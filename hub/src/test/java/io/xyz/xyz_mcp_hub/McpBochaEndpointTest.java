@@ -22,11 +22,12 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Bocha 端点集成测试：经 {@code /mcp/builtin/bocha} 端点验证工具注册与真实调用。
+ * Bocha 原生源集成测试（#39 迁移：旧多端点 {@code /mcp/builtin/bocha} 已移除，改经单端点
+ * {@code /xyz-hub/mcp?includes=[bocha]} 暴露，工具名带 {@code bocha_} 前缀）。
  *
  * <p>用 JDK 内置 {@link HttpServer} 起一个本地 mock 博查 API，并通过
  * {@code bocha.base-url} 指向它——工具调用不依赖真实 API key 与外部网络，但完整走通
- * MCP 端点 → {@code BochaTools} → HTTP 的调用链。</p>
+ * 单端点 → {@code BochaTools} → HTTP 的调用链。</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class McpBochaEndpointTest {
@@ -85,7 +86,7 @@ class McpBochaEndpointTest {
 
 	private McpSyncClient connect() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/mcp/builtin/bocha")
+			.endpoint("/xyz-hub/mcp?includes=[bocha]")
 			.build();
 		var client = McpClient.sync(transport).build();
 		client.initialize();
@@ -103,14 +104,14 @@ class McpBochaEndpointTest {
 	void listToolsExposesBochaSearchTools() {
 		client = connect();
 		var tools = client.listTools().tools();
-		assertThat(tools).extracting(McpSchema.Tool::name).contains("web_search", "ai_search");
+		assertThat(tools).extracting(McpSchema.Tool::name).contains("bocha_web_search", "bocha_ai_search");
 		assertThat(tools).allSatisfy(tool -> assertThat(tool.description()).isNotBlank());
 	}
 
 	@Test
 	void callWebSearchReturnsResults() {
 		client = connect();
-		String text = callText("web_search", Map.of("query", "spring boot"));
+		String text = callText("bocha_web_search", Map.of("query", "spring boot"));
 		assertThat(text).contains("Spring Boot 官网");
 		assertThat(text).contains("spring.io/projects/spring-boot");
 		assertThat(text).contains("快速构建生产级");
@@ -119,7 +120,7 @@ class McpBochaEndpointTest {
 	@Test
 	void callAiSearchReturnsSummary() {
 		client = connect();
-		String text = callText("ai_search", Map.of("query", "spring boot", "count", 5));
+		String text = callText("bocha_ai_search", Map.of("query", "spring boot", "count", 5));
 		assertThat(text).contains("AI 总结");
 		assertThat(text).contains("流行的 Java 微服务框架");
 		assertThat(text).contains("Spring Boot 官网");

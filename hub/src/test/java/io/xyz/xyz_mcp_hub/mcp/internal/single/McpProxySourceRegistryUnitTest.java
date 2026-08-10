@@ -39,11 +39,6 @@ class McpProxySourceRegistryUnitTest {
 		}
 
 		@Override
-		public String getPath() {
-			return "/mcp/builtin/unreachable";
-		}
-
-		@Override
 		public String getUpstreamUrl() {
 			return upstreamUrl;
 		}
@@ -58,11 +53,6 @@ class McpProxySourceRegistryUnitTest {
 		@Override
 		public String getName() {
 			return "fake-proxy";
-		}
-
-		@Override
-		public String getPath() {
-			return "/mcp/builtin/fake-proxy";
 		}
 
 		@Override
@@ -100,11 +90,6 @@ class McpProxySourceRegistryUnitTest {
 		@Override
 		public String getName() {
 			return "native";
-		}
-
-		@Override
-		public String getPath() {
-			return "/mcp/builtin/native";
 		}
 
 		@Override

@@ -11,7 +11,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>前缀取 {@code mcp} 而非 {@code mcp.specs}：@ConfigurationProperties 绑定时字段名必须出现在
  * 配置路径中（{@code mcp.specs.readonly.includes} → 前缀 {@code mcp} + map 字段 {@code specs}
- * + map 键 {@code readonly} + 子属性 {@code includes}），与旧 {@code mcp.spaces} 同构。</p>
+ * + map 键 {@code readonly} + 子属性 {@code includes}）。（旧 {@code mcp.spaces} 组合端点配置已随
+ * 旧多端点移除，issue #39。）</p>
  *
  * <p>默认不声明任何组合源（空 map，行为与未配置完全一致）；声明后由 {@link McpSourceRegistry}
  * 启动时静态解析并发布为目录中的 {@code type: composite} 源，被 {@code includes} 引用时与普通源等效。

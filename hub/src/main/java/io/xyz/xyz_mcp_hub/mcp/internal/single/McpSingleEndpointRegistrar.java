@@ -20,15 +20,14 @@ import org.springframework.web.servlet.function.ServerResponse;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 单端点注册器（ADR-0011，expand 阶段与旧多端点并存）：挂一个 McpServer 于双传输
- * {@code /xyz-hub/mcp}（Streamable HTTP）与 {@code /xyz-hub/sse}（HTTP+SSE），共享同一
- * {@link McpSourceRegistry} 与 URL 参数过滤逻辑。
+ * 单端点注册器（ADR-0011）：挂一个 McpServer 于双传输 {@code /xyz-hub/mcp}（Streamable HTTP）与
+ * {@code /xyz-hub/sse}（HTTP+SSE），共享同一 {@link McpSourceRegistry} 与 URL 参数过滤逻辑。
  *
  * <p>双传输共享 {@link McpSingleServer} 提供的会话工厂与请求处理器；SSE 建连 GET 经路由过滤器
  * 捕获 URL 参数、按会话暂存，使消息 POST 也能解析同一工具视图（过滤行为与 /mcp 一致）。</p>
  *
- * <p>本注册器只新增 `/xyz-hub/*` 两个路由，不动旧多端点（旧端点由 {@code HubMcpRegistrar} 继续
- * 注册）；Spring 的 {@code RouterFunctionMapping} 会把多个 RouterFunction bean 合并。</p>
+ * <p>本注册器是 Hub 唯一的 MCP 传输注册器（issue #39 起旧多端点 {@code HubMcpRegistrar} 已移除）；
+ * 目录路由（{@code CatalogEndpoint}）由 Spring 的 {@code RouterFunctionMapping} 合并为同一映射。</p>
  */
 @Configuration(proxyBeanMethods = false)
 public class McpSingleEndpointRegistrar implements SmartLifecycle {
