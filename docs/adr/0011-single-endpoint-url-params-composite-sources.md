@@ -1,12 +1,12 @@
-# ADR-0011: 单端点 + URL 参数选工具 + 组合源 + 目录 API
+# ADR-0011: 单端点 + URL 参数选工具 + 目录 API
 
 ## 日期
 
-2026-08-09
+2026-08-09（2026-08-11 修订：组合源退役打回草稿、URL 通配符语义、目录 enabled/type 收敛、proxy 配置化见 ADR-0007）
 
 ## 状态
 
-已接受（**取代 ADR-0008 的组合端点 Space 命名空间**）
+已接受（2026-08-11 修订；**取代 ADR-0008 的组合端点 Space 命名空间**；组合源章节已退役）
 
 ## 背景
 
@@ -29,29 +29,30 @@ MCP 的 Streamable HTTP 端点 URL **原生支持 query param**——工具选�
 - **工具永远注册在源里**；`listTools` 时按连接 URL 参数过滤返回子集，被过滤的工具对 agent「不存在」——这正是省 Token 的机制。
 - 实现为**单 McpServer + 按请求/会话解析 URL 参数**（无状态友好，因为 URL 参数在每个请求里都携带）。
 
-### URL 参数语法（与 YAML 完全一致）
+### URL 参数语法（2026-08-11 修订：严格、无语法糖、通配符）
 
 ```
-/xyz-hub/mcp?includes=[jina,bocha_web_search]&excludes=[]
+/xyz-hub/mcp?includes=[bocha*,*search]&excludes=[]
 ```
 
-- `includes`/`excludes`（复数）：`includes` 先选（并集），`excludes` 再减；**无参数 = 全量**（向后兼容）。
-- 项 = **下划线平坦名**：源名（`jina` → 展开该源全部工具）或工具名（`bocha_web_search` → 精确一个工具）。解析：先精确匹配工具名，再按源名做 `{source}_` 前缀展开。
-- 列表：URL 用 `[a,b]` 方括号（URL 不允许空格），YAML 用数组，两处一致。**统一用下划线，无点分隔**（MCP 工具名规范不允许点，暴露名与语法名同一套体系，零映射）。
+- `includes`/`excludes`（复数）：`includes` 先选（并集），`excludes` 再减。**无 `includes` ≡ `[*]`（全量）；`includes=[]` = 空集**（不引入任何工具，无语法糖——显式空 ≠ 全量）；无 `excludes` ≡ `[]`（不减）。
+- 项 = **工具名**（下划线平坦名，如 `bocha_web_search`）。**源名匹配已退役**——要某源全部工具写 `bocha*`。
+- **通配符**：工具名支持 `*`（裸 `*` = 全量 / `bocha*` 前缀 / `*search` 后缀 / `bo*search` 中间）。**不支持 `?`**。`*` 在 URL query 中合法、无需编码。
+- 列表：URL 用 `[a,b]` 方括号。**统一用下划线，无点分隔**（MCP 工具名规范不允许点，暴露名与语法名同一套体系，零映射）。
 - 未知项：静默忽略 + 日志 warn（不使连接失败）。
 
-### 组合源（specs，取代 Space 组合端点）
+### 组合源（specs）— 已退役，打回草稿（2026-08-11）
 
-- YAML 定义（`mcp.specs`），**发布成一个新源入目录**，与任何普通源同等被 `includes` 引用；URL 无关。
-- 可引用多个源、支持 `includes`/`excludes`（含精确到工具）；**启动时静态解析、可嵌套、发布时循环检测**；动态性只来自 URL 过滤。
-- 例：`github-readonly` = `{includes: [github], excludes: [github_create_issue, ...]}`。
-- 旧 Space 组合端点（独立 URL 命名空间）退役；组合能力由 `mcp.specs` 承担。#39 实现时连同 `SpaceDefinition`/`SpaceSource`/`SpaceDefinitionSource` VO/SPI 一并删除——组合能力已由 specs 完全取代，保留死 VO 属「残留引用」。
+- `mcp.specs` 组合源机制**整体移除**（#33 实现后评估不足：唯一用例 `github-readonly` 定位反复、快捷参数价值存疑、与"源"一等公民语义冲突）。
+- 代码彻底删除，**保留 issue 记录为将来要做的功能（草稿）**：白名单搜索工具集、URL 快捷参数、`github-readonly` 定位等，待重做时再评估。
+- 目录不再有 `type=composite`、不再有 `base` 溯源字段。
 
 ### 目录 API
 
 - `GET /xyz-hub/catalog` — 机器可读的「源 + 工具」清单，URL 构建器与客户端的事实源。
-- 每个源：`name` / `type`（native/proxy/container/host/composite）/ `protocol`（container 专有：mcp|rest）/ `scope` / `tools`；组合源带 `base` + 过滤溯源。
-- 数据**三源汇合**：代码声明（native/host/rest 包装）+ 静态冒烟数据（容器 mcp）+ 启动发现（公有云 proxy）。
+- 每个源：`name` / `type`（native/proxy/container，host 并入 native 靠 scope 区分）/ `protocol`（container 专有：mcp|rest）/ `scope` / **`enabled`**（注册/启用分离，见 ADR-0005）/ `tools`（未启用源为空）。
+- 目录列出**所有已注册源**（编译期/配置固定），`enabled` 反映配置门控；不再有 `base`/composite。
+- 数据**三源汇合**：本地工具类声明（native/host）+ 静态冒烟数据（容器 mcp）+ 启动发现（配置 proxy，见 ADR-0007）。
 - 默认无认证、仅本地可读（与 MCP 端点一致）。
 - web 页 URL 构建器（勾选源/工具 → 生成 URL）延后决策（是否 Vaadin 未定）。
 
@@ -63,6 +64,6 @@ MCP 的 Streamable HTTP 端点 URL **原生支持 query param**——工具选�
 
 ## 后果
 
-- **正面**：端点表面单一、可组合、零配置；URL 即 Space；省 Token 价值直接由 client 配置达成；目录 API 让任意客户端可枚举、按需拼 URL。
-- **正面**：过滤是应用层，双传输共享实现；语法 URL/YAML 一致，心智负担低。
-- **负面**：无参数 = 全量，懒 client 会拿到全部工具（省 Token 靠自觉）；组合源静态解析，base 源变化需重启；重构工作量大（`HubMcpRegistrar` 重写 + 组合源注册 + 目录端点）。
+- **正面**：端点表面单一、可组合、零配置；URL 即工具视图；省 Token 价值直接由 client 配置达成；目录 API 让任意客户端可枚举、按需拼 URL。
+- **正面**：过滤是应用层，双传输共享实现；通配符让工具选择表达力强且严格（源名退役、`includes=[]` 空集语义明确）。
+- **负面**：`includes=[]` 是空集而非全量（严格语义，需文档化）；懒 client 无参数仍会拿到全部工具（省 Token 靠自觉）；组合源退役后无"多源聚合"能力（打回草稿，见 issue）。
