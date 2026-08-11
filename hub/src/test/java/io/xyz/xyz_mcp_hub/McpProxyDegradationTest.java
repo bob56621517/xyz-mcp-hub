@@ -16,12 +16,12 @@ import org.springframework.test.context.DynamicPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * ProxyMcp 上游不可达 → 源降级集成测试（#35）。
+ * ProxyMcp 上游不可达 → 源注册但工具空集成测试（#35，#50 注册/启用分离）。
  *
  * <p>三个公共 proxy 源（context7 / grep-app / wikidata）全部指向不可达地址（localhost:1，必然
  * Connection refused），验证启动时 {@code listTools} 发现失败时：应用照常启动、单端点
- * {@code /xyz-hub/mcp} 仍可用、proxy 源工具不在工具视图内（源降级，沿用 {@code isEnabled()} 语义）、
- * 原生源（utils）不受影响。</p>
+ * {@code /xyz-hub/mcp} 仍可用、proxy 源工具不在工具视图内（源仍已注册但工具为空，见 ADR-0005
+ * 二次修订）、原生源（utils）不受影响。</p>
  *
  * <p>无外部依赖：不可达地址连接即拒，不触网、无需真实 key。</p>
  */
@@ -69,7 +69,7 @@ class McpProxyDegradationTest {
 
 	@Test
 	void degradedProxySourceCannotBeSelected() {
-		// 降级的源名在解析时视为未知项：includes=[context7] → 空工具集（静默忽略 + warn，连接不失败）
+		// 上游不可达的 proxy 源已注册但工具为空：includes=[context7] → 空工具集（源存在但无工具 + warn，连接不失败）
 		client = connect("/xyz-hub/mcp?includes=[context7]");
 		assertThat(client.listTools().tools()).isEmpty();
 	}

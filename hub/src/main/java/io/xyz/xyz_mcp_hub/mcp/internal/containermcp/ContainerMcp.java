@@ -23,9 +23,10 @@ import org.springframework.ai.tool.ToolCallback;
  * 全部委托 {@code docker} 模块的 {@link ContainerManager}；工具清单由子类以静态冒烟数据声明（镜像由我们
  * pin，工具集与所 pin 镜像版本绑定，ADR-0011 决策 5）。</p>
  *
- * <p>优雅降级（#37 验收）：docker 运行时未启用（{@code docker.enabled=false}，ContainerManager bean
- * 不存在）或镜像清单缺失本源规格时 {@link #isEnabled()} 返回 {@code false}，源不出现在工具目录、
- * 不拖垮 hub；工具调用失败由工具层返回友好文本（见 {@code MarkitdownTools} / {@code JinaTools}）。</p>
+ * <p>优雅降级（#37 验收，#50 注册/启用分离）：docker 运行时未启用（{@code docker.enabled=false}，
+ * ContainerManager bean 不存在）或镜像清单缺失本源规格时 {@link #isEnabled()} 返回 {@code false}，
+ * 源未启用（已注册、目录列出 enabled=false、工具为空）、不拖垮 hub；工具调用失败由工具层返回
+ * 友好文本（见 {@code MarkitdownTools} / {@code JinaTools}）。</p>
  */
 public abstract class ContainerMcp implements McpEndpointProvider {
 
@@ -71,7 +72,7 @@ public abstract class ContainerMcp implements McpEndpointProvider {
 	@Override
 	public boolean isEnabled() {
 		if (containerManager == null) {
-			log.debug("docker 容器运行时未启用（docker.enabled=false），ContainerMcp 源 {} 降级禁用", getName());
+			log.debug("docker 容器运行时未启用（docker.enabled=false），ContainerMcp 源 {} 未启用", getName());
 			return false;
 		}
 		return findSpec().isPresent();

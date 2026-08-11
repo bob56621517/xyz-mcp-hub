@@ -28,13 +28,15 @@ vaadin:
 
 bocha:
   base-url: https://api.bochaai.com
-  # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005）；缺省为空，服务不注册
+  # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005 二次修订）；缺省为空，源未启用
+  # （已注册、目录列出 enabled=false、工具为空，#50 注册/启用分离）
   api-key: ${BOCHA_API_KEY:}
 
 github:
   # GitHub 官方远程托管 MCP 服务端点（Streamable HTTP，见 ADR-0007）
   upstream-url: https://api.githubcopilot.com/mcp/
-  # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005）；缺省为空，github-full 不注册
+  # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005 二次修订）；缺省为空，github-full 未启用
+  # （已注册、目录列出 enabled=false、工具为空，#50 注册/启用分离）
   token: ${GITHUB_TOKEN:}
 
 playwright:

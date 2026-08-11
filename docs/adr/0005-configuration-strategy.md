@@ -29,7 +29,7 @@
 | 值层 | 环境变量 或 `application-local.yml` | `BOCHA_API_KEY: <真实值>` | ❌ local.yml .gitignore |
 | 模板 | `application-local.yml.example` | 列出全部需注入的 key 名（值留空） | ✅ 提交 |
 
-值可放环境变量（部署注入）或 `application-local.yml`（本地集中），程序无感知；`${BOCHA_API_KEY:}` 空默认，缺省时对应端点不注册。
+值可放环境变量（部署注入）或 `application-local.yml`（本地集中），程序无感知；`${BOCHA_API_KEY:}` 空默认，缺省时对应端点未启用（已注册、目录列出 `enabled=false`、工具为空，见下）。
 
 ### 缺配置 → 已注册未启用
 

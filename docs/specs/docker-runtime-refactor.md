@@ -53,7 +53,7 @@
 - **端点**（ADR-0011）：单 `McpServer` + 每请求/会话按 URL 参数解析工具视图；双传输（`/mcp` Streamable HTTP + `/sse` HTTP+SSE）默认开、共享同一过滤（过滤是应用层，与传输无关）。
 - **URL 参数语法**：`includes`/`excludes`（复数），`[a,b]` 方括号列表，项 = 下划线平坦名（源名展开该源全部工具 / 工具名精确一个）；解析先精确匹配工具名、再按源名 `{source}_` 前缀展开；无参 = 全量；未知项静默忽略 + warn。
 - **组合源（specs）**：`mcp.specs` YAML（`specName: {includes, excludes}`）→ 发布新源入目录；启动时静态解析、可嵌套、发布时循环检测；与普通源同等被 `includes` 引用。组合端点 Space 的 VO/SPI（`SpaceDefinition`/`SpaceSource`/`SpaceDefinitionSource`）已随旧多端点整体移除（issue #39），组合能力全部由 specs 承担。
-- **目录 API**：`GET /xyz-hub/catalog`，每源含 `name`/`type`（native/proxy/container/host/composite）/`protocol`（container 专有）/`scope`/`tools`，组合源带 `base` 溯源；数据三源汇合（代码声明 + 静态冒烟 + 启动发现）；无认证、仅本地可读。
+- **目录 API**：`GET /xyz-hub/catalog`，每源含 `name`/`type`（native/proxy/container，#50 收敛，host 并入 native 靠 scope）/`protocol`（container 专有）/`scope`/`enabled`（注册/启用分离，#50）/`tools`；组合源与 `base` 溯源已整体移除（#49）；数据三源汇合（代码声明 + 静态冒烟 + 启动发现）；无认证、仅本地可读。
 - **仓库结构**（ADR-0012）：根聚合 pom + `hub/` + `sidecars/{markitdown,playwright}` + `manifests/` + `compose.yaml`（可选，仅起 hub）；hub 标准 Spring Boot；`mvn install` 只构建 + 安装 sidecar 镜像（buildx，各 sidecar 模块 pom 触发）；`manifests/mcp-images.yaml` = mvn 生成的运行规范。
 - **docker 顶级模块**：容器生命周期管理（首用拉起/健康检查/闲置回收/防重拉/关闭销毁），与 `playwright` 同级；`ContainerMcp` 经它按需起容器（jina 从 GHCR pull，sidecar 从本地镜像）。
 - **SSRF**（ADR-0010）：复用 `SsrUrlGuard` 迁至 `security` 包；容器代抓用 `check(url)` 静态预检；完整 DNS 锁定路径（`resolveAndCheck`）保留给未来 hub 直连；容器绑 127.0.0.1 + 隔离网络兜底重定向/DNS rebinding。

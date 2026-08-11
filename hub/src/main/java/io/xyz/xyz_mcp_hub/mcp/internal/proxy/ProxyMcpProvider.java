@@ -95,8 +95,9 @@ public abstract class ProxyMcpProvider implements McpEndpointProvider {
 	 * 启动时发现，见 ADR-0011）。返回的 {@link McpServerFeatures.AsyncToolSpecification} 使用上游
 	 * 原始 ToolSchema，callHandler 透明转发 callTool 到上游、响应原样返回（含 isError）。
 	 *
-	 * <p>上游不可达（连接/握手/listTools 失败）时抛 {@link RuntimeException}，由源注册表捕获做源
-	 * 降级——沿用 {@link #isEnabled()} 语义：该源不入注册表、应用照常启动。</p>
+	 * <p>上游不可达（连接/握手/listTools 失败）时抛 {@link RuntimeException}，由源注册表捕获——
+	 * 源仍已注册（目录列出），{@code enabled} 保持配置值、工具为空 + 日志（#50 注册/启用分离，
+	 * 见 ADR-0005 二次修订），应用照常启动、不拖垮启动（#35）。</p>
 	 *
 	 * <p>转发时把 Hub 侧的带前缀工具名（{@code {source}_{tool}}，如 {@code context7_query_docs}）
 	 * 翻译回上游原始工具名（如 {@code query_docs}）再转发，否则上游不识别带前缀名。</p>

@@ -27,10 +27,11 @@ public interface McpEndpointProvider {
 	Scope getScope();
 
 	/**
-	 * 源类型（目录 API 元数据，ADR-0011 / issue #34）：native / proxy / container / host。
+	 * 源类型（目录 API 元数据，ADR-0011 / issue #34，#50 收敛）：native / proxy / container。
 	 *
-	 * <p>默认 {@link SourceType#NATIVE}；{@code HostMcp} 覆盖为 {@link SourceType#HOST}，ProxyMcp /
-	 * ContainerMcp 各自覆盖。组合源已整体移除（#49），不再有 composite 类型。</p>
+	 * <p>默认 {@link SourceType#NATIVE}；{@code HostMcp} 不再覆盖（host 并入 native，靠
+	 * {@code scope} 表达部署，#50），ProxyMcp / ContainerMcp 各自覆盖。组合源已整体移除（#49），
+	 * 不再有 composite 类型。</p>
 	 */
 	default SourceType getSourceType() {
 		return SourceType.NATIVE;
@@ -47,9 +48,10 @@ public interface McpEndpointProvider {
 	}
 
 	/**
-	 * 源是否注册。默认 {@code true}；子类在自身所需关键配置（如 API key）缺失时返回
-	 * {@code false}，由 {@code McpSourceRegistry} 跳过注册（见 ADR-0005）。只做配置检查，
-	 * 不发起网络请求——proxy 上游连接失败由注册表在启动发现时兜底（源降级）。
+	 * 源是否启用（注册/启用分离，#50，见 ADR-0005 二次修订）。默认 {@code true}；子类在自身
+	 * 所需关键配置（如 API key）缺失时返回 {@code false}。源仍**已注册**（目录列出、
+	 * {@code enabled=false}、工具为空），只是**未启用**——不再"缺配置即整个源从目录消失"。
+	 * 只做配置检查、不发起网络请求——proxy 上游连接失败由注册表在启动发现时兜底（源降级）。
 	 */
 	default boolean isEnabled() {
 		return true;
