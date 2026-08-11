@@ -188,9 +188,12 @@ class MarkitdownContainerMcpTest {
 	}
 
 	@Test
-	void disabledProviderNotInRegistry() {
+	void disabledProviderIsRegisteredButNotEnabled() {
+		// #50 注册/启用分离：未启用容器源仍注册（目录列出、enabled=false）、工具不进全量表
 		McpSourceRegistry registry = new McpSourceRegistry(
 			java.util.List.of(provider(null, embeddedUpstream())));
+		assertThat(registry.sources()).extracting(McpSourceRegistry.McpSource::name).containsExactly("markitdown");
+		assertThat(registry.sources().get(0).enabled()).isFalse();
 		assertThat(registry.allToolNames()).isEmpty();
 	}
 

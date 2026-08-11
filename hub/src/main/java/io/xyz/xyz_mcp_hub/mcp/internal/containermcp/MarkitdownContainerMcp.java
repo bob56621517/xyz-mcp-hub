@@ -20,7 +20,8 @@ import org.springframework.stereotype.Component;
  * （容器绑 127.0.0.1 + 隔离网络，ADR-0010/0012）。</p>
  *
  * <p>优雅降级：docker 运行时未启用（{@code docker.enabled=false}，ContainerManager bean 缺失）或清单
- * 缺失本源规格时 {@link #isEnabled()} 返回 {@code false}，源不注册；{@link ContainerManager} 与
+ * 缺失本源规格时 {@link #isEnabled()} 返回 {@code false}，源未启用（已注册、目录列出 enabled=false、
+ * 工具为空，见 ADR-0005 二次修订 / #50）；{@link ContainerManager} 与
  * {@link ContainerEndpoint} 经 {@link ObjectProvider} 注入以支持缺省。</p>
  */
 @Component

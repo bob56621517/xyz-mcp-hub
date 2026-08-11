@@ -19,8 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
- * ProxyMcp 源注册纯逻辑单测（#35）：源降级（上游不可达不入注册表）、proxy 工具规格
- * {@code {source}_{tool}} 前缀改名、close 幂等。不启动 Spring 上下文、不触网。
+ * ProxyMcp 源注册纯逻辑单测（#35）：注册/启用分离（#50，未启用源仍注册、目录列出 enabled=false）、
+ * proxy 工具规格 {@code {source}_{tool}} 前缀改名、close 幂等。不启动 Spring 上下文、不触网。
  */
 class McpProxySourceRegistryUnitTest {
 
@@ -110,19 +110,41 @@ class McpProxySourceRegistryUnitTest {
 	}
 
 	@Test
-	void unreachableProxySourceIsDegradedWithoutThrowing() {
+	void unreachableProxySourceIsRegisteredWithEmptyToolsWithoutThrowing() {
+		// #50 注册/启用分离：proxy 上游不可达源仍注册（enabled 保持配置值 true）、工具为空，不抛
 		McpSourceRegistry registry = new McpSourceRegistry(List.of(new UnreachableProxy("http://localhost:1/x")));
-		assertThat(registry.sources()).isEmpty();
+		assertThat(registry.sources()).extracting(McpSourceRegistry.McpSource::name).containsExactly("unreachable");
+		assertThat(registry.sources().get(0).enabled()).isTrue();
+		assertThat(registry.sources().get(0).specs()).isEmpty();
 		assertThat(registry.allToolNames()).isEmpty();
 	}
 
 	@Test
-	void degradedProxyKeepsOtherSourcesIntact() {
+	void unreachableProxySourceKeepsOtherSourcesIntact() {
 		McpSourceRegistry registry = new McpSourceRegistry(
 				List.of(new UnreachableProxy("http://localhost:1/x"), new NativeSource()));
-		// proxy 源被降级，原生源不受影响
+		// proxy 源注册但工具为空，原生源不受影响
 		assertThat(registry.allToolNames()).containsExactly("native_toolA");
-		assertThat(registry.sources()).extracting(McpSourceRegistry.McpSource::name).containsExactly("native");
+		assertThat(registry.sources()).extracting(McpSourceRegistry.McpSource::name)
+			.containsExactlyInAnyOrder("unreachable", "native");
+		// 未启用的 proxy 源被 URL 引用得空集（源存在但无工具），连接不失败
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[unreachable]"), Optional.empty())))
+			.isEmpty();
+	}
+
+	@Test
+	void disabledProxySourceIsRegisteredButNotEnabled() {
+		// 未启用 proxy（isEnabled=false，如缺 token）：目录列出 enabled=false、工具为空，不触上游
+		ProxyMcpProvider disabled = new FakeProxy() {
+			@Override
+			public boolean isEnabled() {
+				return false;
+			}
+		};
+		McpSourceRegistry registry = new McpSourceRegistry(List.of(disabled));
+		assertThat(registry.sources()).extracting(McpSourceRegistry.McpSource::name).containsExactly("fake-proxy");
+		assertThat(registry.sources().get(0).enabled()).isFalse();
+		assertThat(registry.allToolNames()).isEmpty();
 	}
 
 	@Test

@@ -24,15 +24,20 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 目录 API 集成测试（ADR-0011 / issue #34）：{@code GET /xyz-hub/catalog} 返回已注册源的机器可读清单。
+ * 目录 API 集成测试（ADR-0011 / issue #34，#50 重构）：{@code GET /xyz-hub/catalog} 返回全部
+ * 已注册源的机器可读清单。
  *
- * <p>主 seam：经真实 HTTP 端点验证目录形状——每源含 name / type / protocol / scope / tools
- * （#49 组合源移除后不再有 base），与 ADR-0011 目录 schema 一致；冒烟断言当前已注册源
- * （utils / bocha 为 native，playwright 为 host）都在清单中。无认证：请求不带任何 Authorization 头
- * 即可读（本端点与 MCP 端点一致，仅本地可读）。</p>
+ * <p>主 seam：经真实 HTTP 端点验证目录形状——每源含 name / type / protocol / scope / enabled / tools，
+ * 与 ADR-0011 目录 schema 一致（#49 组合源移除后不再有 base；#50 type 只剩 native/proxy/container）。
+ * 无认证：请求不带任何 Authorization 头即可读（本端点与 MCP 端点一致，仅本地可读）。</p>
  *
- * <p>无外部依赖：bocha 上游用 JDK {@link HttpServer} mock（同 {@code McpSingleEndpointTest} 手法），
- * 注入假 key 使 bocha 源注册进目录。</p>
+ * <p>源集冻结（#50 注册/启用分离）：目录列出**所有已注册源**（代码/配置固定），enabled 反映配置
+ * 门控——bocha 自给 mock key（enabled=true）、github 置空 token（enabled=false）、proxy 指向不可达
+ * （enabled=true 但工具空）、docker 禁用（容器源 enabled=false）。断言不随外部环境（GITHUB_TOKEN /
+ * 网络 / docker）抖动。</p>
+ *
+ * <p>无外部依赖：bocha 上游用 JDK {@link HttpServer} mock（同 {@code McpSingleEndpointTest} 手法）；
+ * proxy（context7/grep-app/wikidata）上游全部指向不可达地址；docker.enabled=false。</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class McpCatalogEndpointTest {
@@ -48,6 +53,9 @@ class McpCatalogEndpointTest {
 		]}
 		""".strip();
 
+	/** 不可达 proxy 上游（localhost:1 必然 Connection refused），用于冻结 proxy 源集且不触网。 */
+	private static final String UNREACHABLE = "http://localhost:1/mcp";
+
 	private static HttpServer mockApi;
 
 	@LocalServerPort
@@ -62,7 +70,16 @@ class McpCatalogEndpointTest {
 		mockApi.createContext("/v1/ai-search", exchange -> respond(exchange, AI_SEARCH_RESPONSE));
 		mockApi.start();
 		registry.add("bocha.base-url", () -> "http://localhost:" + mockApi.getAddress().getPort());
+		// bocha：opt-in 源，测试自给 mock key → enabled=true
 		registry.add("bocha.api-key", () -> "test-key");
+		// github：opt-in 源，token 置空 → enabled=false
+		registry.add("github.token", () -> "");
+		// proxy 源：全部指向不可达（冻结为 enabled=true 但工具空，不触网）
+		registry.add("proxy.context7.upstream-url", () -> UNREACHABLE);
+		registry.add("proxy.grep-app.upstream-url", () -> UNREACHABLE);
+		registry.add("proxy.wikidata.upstream-url", () -> UNREACHABLE);
+		// docker 禁用：容器源（markitdown/jina）enabled=false（不依赖 manifest / docker daemon）
+		registry.add("docker.enabled", () -> "false");
 	}
 
 	private static void respond(HttpExchange exchange, String json) throws IOException {
@@ -81,25 +98,51 @@ class McpCatalogEndpointTest {
 		}
 	}
 
-	// ---- 验收 1：目录返回所有已注册源及其工具（无认证、仅本地可读） ----
-	// 冒烟（本期）：已注册源集随环境抖动（配置了 GITHUB_TOKEN 时 github-full 也注册），
-	// 精确源集断言在 #48「注册/启用分离」后重写（目录固定列所有已注册源 + enabled），见 @Disabled 理由。
-	// playwright 为 HostMcp 源（type=host，issue #36）；其余（bocha/utils）为 native。
+	// ---- 验收 1：目录列出所有已注册源（源集冻结，不随环境抖动）+ enabled 显式声明 ----
 
 	@Test
-	@org.junit.jupiter.api.Disabled("#48 注册/启用分离后重写：配置了 GITHUB_TOKEN 时 github-full 也注册进目录，"
-			+ "精确源集断言依赖环境，见 issue #48 Problem Statement")
-	void catalogListsAllRegisteredNativeSources() throws Exception {
+	void catalogListsAllRegisteredSourcesWithFrozenSet() throws Exception {
+		// 已注册源集 = 代码/配置固定（#50）：native（utils/bocha/playwright）+ proxy（github-full/
+		// context7/grep-app/wikidata）+ container（markitdown/jina），未启用源也列出
 		JsonNode sources = fetchCatalog().get("sources");
 		assertThat(sources.isArray()).isTrue();
-		assertThat(names(sources)).containsExactlyInAnyOrder("bocha", "playwright", "utils");
-		for (JsonNode source : sources) {
-			String expected = "playwright".equals(source.get("name").asText()) ? "host" : "native";
-			assertThat(source.get("type").asText()).isEqualTo(expected);
+		assertThat(names(sources)).containsExactlyInAnyOrder(
+				"bocha", "utils", "playwright",
+				"github-full", "context7", "grep-app", "wikidata",
+				"markitdown", "jina");
+	}
+
+	@Test
+	void optInSourcesDeclareEnabledExplicitly() throws Exception {
+		JsonNode sources = fetchCatalog().get("sources");
+		// bocha：自给 mock key → enabled=true、工具可用
+		JsonNode bocha = sourceByName(sources, "bocha");
+		assertThat(bocha.get("enabled").asBoolean()).isTrue();
+		assertThat(toolNames(bocha)).isNotEmpty();
+		// github-full：token 置空 → enabled=false、tools 空
+		JsonNode github = sourceByName(sources, "github-full");
+		assertThat(github.get("enabled").asBoolean()).isFalse();
+		assertThat(toolNames(github)).isEmpty();
+	}
+
+	@Test
+	void unenabledSourcesAreListedWithEmptyTools() throws Exception {
+		JsonNode sources = fetchCatalog().get("sources");
+		// 未启用源（github-full/容器源）目录列出、enabled=false、tools 空
+		for (String name : List.of("github-full", "markitdown", "jina")) {
+			JsonNode source = sourceByName(sources, name);
+			assertThat(source.get("enabled").asBoolean()).as("源 %s 应未启用", name).isFalse();
+			assertThat(toolNames(source)).as("源 %s 工具应为空", name).isEmpty();
+		}
+		// 已启用源（utils/playwright）enabled=true、工具非空
+		for (String name : List.of("utils", "playwright")) {
+			JsonNode source = sourceByName(sources, name);
+			assertThat(source.get("enabled").asBoolean()).as("源 %s 应启用", name).isTrue();
+			assertThat(toolNames(source)).as("源 %s 工具应非空", name).isNotEmpty();
 		}
 	}
 
-	// ---- 验收 2：各源含 type / protocol / scope / tools；组合源含 base（#49 移除后不再有） ----
+	// ---- 验收 2：各源含 type / protocol / scope / enabled / tools；type 只剩 native/proxy/container ----
 	// 形状契约（与具体源无关，目录自动增长后仍应成立）
 
 	@Test
@@ -107,19 +150,20 @@ class McpCatalogEndpointTest {
 		JsonNode sources = fetchCatalog().get("sources");
 		for (JsonNode source : sources) {
 			assertThat(source.get("name").asText()).isNotBlank();
-			// type 为合法的源类型小写取值（native/proxy/container/host，#49 组合源已移除）
+			// type 为合法的源类型小写取值（native/proxy/container，#49 组合源、#50 host 已收敛）
 			assertThat(source.get("type").asText())
-				.isIn("native", "proxy", "container", "host");
+				.isIn("native", "proxy", "container");
 			// protocol：container 专有（mcp|rest），其余为 null
 			JsonNode protocol = source.get("protocol");
 			assertThat(protocol.isNull() || protocol.asText().matches("mcp|rest")).isTrue();
 			// scope：host / network 小写
 			assertThat(source.get("scope").asText()).isIn("host", "network");
+			// enabled：布尔字段（注册/启用分离，#50）
+			assertThat(source.get("enabled")).isNotNull();
 			// base：组合源溯源已随 #49 整体移除，目录 schema 契约即不含 base 字段
 			assertThat(source.has("base")).isFalse();
-			// tools：非空工具名数组
+			// tools：工具名数组（未启用源为空）
 			assertThat(source.get("tools").isArray()).isTrue();
-			assertThat(toolNames(source)).isNotEmpty();
 		}
 	}
 
@@ -142,7 +186,30 @@ class McpCatalogEndpointTest {
 	void playwrightSourceIsListedWithTools() throws Exception {
 		JsonNode sources = fetchCatalog().get("sources");
 		JsonNode playwright = sourceByName(sources, "playwright");
+		// host 并入 native（#50）：type=native、scope=host 表达部署
+		assertThat(playwright.get("type").asText()).isEqualTo("native");
+		assertThat(playwright.get("scope").asText()).isEqualTo("host");
 		assertThat(toolNames(playwright)).contains("playwright_web_session", "playwright_browser_navigate");
+	}
+
+	// ---- 冒烟：proxy / container 源在目录中的类型 ----
+
+	@Test
+	void proxySourcesAreListedAsProxyType() throws Exception {
+		JsonNode sources = fetchCatalog().get("sources");
+		for (String name : List.of("github-full", "context7", "grep-app", "wikidata")) {
+			assertThat(sourceByName(sources, name).get("type").asText()).as("源 %s 应 type=proxy", name)
+				.isEqualTo("proxy");
+		}
+	}
+
+	@Test
+	void containerSourcesAreListedAsContainerType() throws Exception {
+		JsonNode sources = fetchCatalog().get("sources");
+		for (String name : List.of("markitdown", "jina")) {
+			assertThat(sourceByName(sources, name).get("type").asText()).as("源 %s 应 type=container", name)
+				.isEqualTo("container");
+		}
 	}
 
 	private JsonNode fetchCatalog() throws Exception {

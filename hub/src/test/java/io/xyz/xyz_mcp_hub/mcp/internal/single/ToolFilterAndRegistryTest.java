@@ -67,7 +67,7 @@ class ToolFilterAndRegistryTest {
 
 	}
 
-	/** 假主机源（HostMcp）：目录元数据应派生为 type=host / scope=host。 */
+	/** 假主机源（HostMcp）：目录元数据应派生为 type=native / scope=host（#50 host 并入 native）。 */
 	private static class HostSource extends HostMcp {
 
 		private final List<ToolCallback> tools;
@@ -206,7 +206,8 @@ class ToolFilterAndRegistryTest {
 	}
 
 	@Test
-	void disabledProviderIsExcludedFromRegistry() {
+	void disabledProviderIsRegisteredButNotEnabled() {
+		// #50 注册/启用分离：未启用源仍注册（目录列出、enabled=false），工具不进全量表
 		McpEndpointProvider alpha = new AlphaSource("toolA", "toolB") {
 			@Override
 			public boolean isEnabled() {
@@ -214,7 +215,23 @@ class ToolFilterAndRegistryTest {
 			}
 		};
 		McpSourceRegistry registry = new McpSourceRegistry(List.of(alpha));
+		assertThat(registry.sources()).extracting(McpSourceRegistry.McpSource::name).containsExactly("alpha");
+		assertThat(registry.sources().get(0).enabled()).isFalse();
 		assertThat(registry.allToolNames()).isEmpty();
+	}
+
+	@Test
+	void disabledProviderReferencedByUrlYieldsEmptySetWithWarn() {
+		McpEndpointProvider alpha = new AlphaSource("toolA", "toolB") {
+			@Override
+			public boolean isEnabled() {
+				return false;
+			}
+		};
+		McpSourceRegistry registry = new McpSourceRegistry(List.of(alpha));
+		// 未启用源被 URL 引用得空集（源存在但无工具），连接不失败
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[alpha]"), Optional.empty())))
+			.isEmpty();
 	}
 
 	// ---- 目录元数据（issue #34）：McpSource 携带 type/protocol/scope ----
@@ -232,11 +249,13 @@ class ToolFilterAndRegistryTest {
 	}
 
 	@Test
-	void hostSourceIsTypedHostWithHostScope() {
+	void hostSourceIsNativeTypeWithHostScope() {
+		// #50 host 并入 native：type=native，scope=host 表达部署
 		McpSourceRegistry registry = new McpSourceRegistry(List.of(new HostSource("toolA")));
 		McpSourceRegistry.McpSource host = registry.sources().get(0);
-		assertThat(host.type()).isEqualTo(SourceType.HOST);
+		assertThat(host.type()).isEqualTo(SourceType.NATIVE);
 		assertThat(host.scope()).isEqualTo(Scope.HOST);
+		assertThat(host.enabled()).isTrue();
 		assertThat(host.protocol()).isNull();
 		assertThat(host.specs()).extracting(spec -> spec.tool().name()).containsExactly("hosty_toolA");
 	}
