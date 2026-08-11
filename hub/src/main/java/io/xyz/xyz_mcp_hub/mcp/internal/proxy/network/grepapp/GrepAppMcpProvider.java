@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * grep.app MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[grep-app]} 暴露）。
+ * grep.app MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[grep_app*]} 暴露）。
  *
  * <p>透明代理官方 grep.app MCP Server（GitHub 开源代码检索），上游默认
  * {@value #DEFAULT_UPSTREAM_URL}，可经 {@code proxy.grep-app.upstream-url} 覆盖

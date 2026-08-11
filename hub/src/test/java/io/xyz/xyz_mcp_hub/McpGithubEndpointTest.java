@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * GitHub 代理源集成测试（mock 联通，见 {@code docs/testing/mcp-service-test-guide.md}；#39 迁移：
- * 旧多端点已移除，改经单端点 {@code /xyz-hub/mcp?includes=[github-full]} 暴露，
+ * 旧多端点已移除，改经单端点 {@code /xyz-hub/mcp?includes=[github_full*]} 暴露，
  * 工具名带 {@code github_full_} 前缀；#49 github-readonly 组合源已移除）：
  * 内嵌 GitHub 风格上游 MCP Server（只读 get_me / search_issues + 写 create_issue + 错误 fail），
  * 验证 listTools 透传、isError 透传、搜索/写工具调用、Bearer 认证注入与 isEnabled 门控。
@@ -91,7 +91,7 @@ class McpGithubEndpointTest {
 
 	@Test
 	void fullProviderExposesAllUpstreamTools() {
-		client = connect("/xyz-hub/mcp?includes=[github-full]");
+		client = connect("/xyz-hub/mcp?includes=[github_full*]");
 		var tools = client.listTools().tools();
 		assertThat(tools).extracting(McpSchema.Tool::name)
 			.containsExactlyInAnyOrder("github_full_get_me", "github_full_search_issues",
@@ -100,14 +100,14 @@ class McpGithubEndpointTest {
 
 	@Test
 	void fullProviderCanCallWriteTool() {
-		client = connect("/xyz-hub/mcp?includes=[github-full]");
+		client = connect("/xyz-hub/mcp?includes=[github_full*]");
 		assertThat(callText(client, "github_full_create_issue", Map.of("title", "bug")))
 			.isEqualTo("created issue #123");
 	}
 
 	@Test
 	void fullProviderPropagatesUpstreamError() {
-		client = connect("/xyz-hub/mcp?includes=[github-full]");
+		client = connect("/xyz-hub/mcp?includes=[github_full*]");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("github_full_fail").arguments(Map.of()).build());
 		assertThat(result.isError()).isTrue();
 		var text = (McpSchema.TextContent) result.content().get(0);

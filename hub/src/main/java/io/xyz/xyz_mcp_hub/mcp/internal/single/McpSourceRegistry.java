@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
@@ -42,8 +43,9 @@ import org.springframework.ai.tool.ToolCallback;
  * <p>每个源携带目录元数据（{@link McpSource}：type / protocol / scope / enabled，issue #34 / #50），
  * 供目录 API（{@link CatalogEndpoint}）读取；proxy / container 源迁入后目录自动增长。</p>
  *
- * <p>解析规则（与 ADR-0011 完全一致）：先精确匹配工具名，再按源名展开该源全部工具；未知项静默
- * 忽略 + 日志 warn；无参数 = 全量。</p>
+ * <p>解析规则（ADR-0011，#51 严格语义）：{@code includes} 缺失 ≡ 全量，显式 {@code includes=[]} =
+ * 空集，{@code excludes} 缺失 ≡ 不减；项为工具名（下划线平坦名），支持 {@code *} 通配（裸 {@code *} =
+ * 全量），源名匹配已退役；通配/未知项匹配不到任何工具 → 静默忽略 + 日志 warn，不使连接失败。</p>
  */
 public class McpSourceRegistry {
 
@@ -58,7 +60,7 @@ public class McpSourceRegistry {
 	 * 源仍已注册（代码/配置固定），是否启用由 {@code isEnabled()} 决定。未启用源 {@code specs} 为空、
 	 * 工具不进全量表。组合源已整体移除（#49），不再有 {@code base} 溯源字段。</p>
 	 *
-	 * @param name 源名（URL includes/excludes 引用单元）
+	 * @param name 源名（目录元数据 / 工具名 {@code {source}_} 前缀；源名不再被 URL 引用，#51）
 	 * @param type 源类型（native/proxy/container，#50 收敛）
 	 * @param protocol 容器接入协议（container 专有，其余为 null）
 	 * @param scope 部署范围（host/network）
@@ -74,9 +76,6 @@ public class McpSourceRegistry {
 
 	/** 带前缀工具名 → 工具规格（全量注册）。 */
 	private final Map<String, McpServerFeatures.AsyncToolSpecification> specsByName;
-
-	/** 源名 → 源（用于源名展开）。 */
-	private final Map<String, McpSource> sourcesByName;
 
 	public McpSourceRegistry(List<McpEndpointProvider> providers) {
 		// #50 注册/启用分离：不再用 isEnabled() 过滤——所有 provider 演化成 source，enabled 由
@@ -95,8 +94,6 @@ public class McpSourceRegistry {
 				log.warn("工具名 {} 由多个源提供，保留先注册者", a.tool().name());
 				return a;
 			}));
-		this.sourcesByName = sources.stream()
-			.collect(Collectors.toMap(McpSource::name, Function.identity(), (a, b) -> a));
 	}
 
 	/** 全部已注册源。 */
@@ -122,26 +119,30 @@ public class McpSourceRegistry {
 	/**
 	 * 解析 URL 参数过滤器，返回可见工具名集合。
 	 *
-	 * <p>{@code includes} 先选（并集，空 = 全量），{@code excludes} 再减；无参数 = 全量；未知项
-	 * 静默忽略 + warn。</p>
+	 * <p>严格语义（#51）：{@code includes} 缺失 ≡ {@code [*]} 全量；显式 {@code includes=[]} =
+	 * 空集（不引入任何工具）；{@code excludes} 缺失或空 = 不减。项为工具名（下划线平坦名），支持
+	 * {@code *} 通配（裸 {@code *} = 全量），源名匹配已退役；通配/未知项匹配不到任何工具 → 静默忽略
+	 * + warn，不使连接失败。</p>
 	 */
 	public Set<String> visibleToolNames(ToolFilter filter) {
 		Set<String> all = allToolNames();
-		if (filter == null || filter.isEmpty()) {
+		if (filter == null) {
 			return all;
 		}
 		Set<String> selected = new LinkedHashSet<>();
-		if (filter.includes().isEmpty()) {
+		if (filter.includesAbsent()) {
 			selected.addAll(all);
 		}
 		else {
-			for (String item : filter.includes()) {
+			for (String item : filter.includes().get()) {
 				applyItem(item, selected, true);
 			}
 		}
-		for (String item : filter.excludes()) {
-			applyItem(item, selected, false);
-		}
+		filter.excludes().ifPresent(excludes -> {
+			for (String item : excludes) {
+				applyItem(item, selected, false);
+			}
+		});
 		return selected;
 	}
 
@@ -151,29 +152,43 @@ public class McpSourceRegistry {
 	}
 
 	/**
-	 * 解析单项：先精确匹配工具名，再按源名展开——普通源为 {@code {source}_} 前缀匹配其全部工具；
-	 * 已注册但无工具的源（未启用，或 proxy 上游不可达）被 URL 引用得空集 + warn；未知项静默忽略 +
-	 * 日志 warn。
+	 * 解析单项（工具名，#51 源名匹配退役）：支持 {@code *} 通配（裸 {@code *} = 全量；
+	 * {@code bocha*} 前缀 / {@code *search} 后缀 / {@code bo*search} 中间），不支持 {@code ?}（按字面
+	 * 处理）；无 {@code *} 的项按精确工具名匹配；匹配不到任何工具 → 未知项 warn，不使连接失败。
 	 */
 	private void applyItem(String item, Set<String> target, boolean add) {
-		if (specsByName.containsKey(item)) {
+		boolean matched = false;
+		if (item.indexOf('*') >= 0) {
+			Pattern pattern = wildcardPattern(item);
+			for (String name : specsByName.keySet()) {
+				if (pattern.matcher(name).matches()) {
+					applyTool(name, target, add);
+					matched = true;
+				}
+			}
+		}
+		else if (specsByName.containsKey(item)) {
 			applyTool(item, target, add);
-			return;
+			matched = true;
 		}
-		McpSource source = sourcesByName.get(item);
-		if (source != null) {
-			if (source.specs().isEmpty()) {
-				String reason = source.enabled()
-					? "已启用但上游不可达/无工具"
-					: "未启用";
-				log.warn("工具视图过滤：源 {} {}，引用得空集", item, reason);
-			}
-			for (String name : expandSource(source.name())) {
-				applyTool(name, target, add);
-			}
-			return;
+		if (!matched) {
+			log.warn("工具视图过滤：未知的 includes/excludes 项被忽略: {}", item);
 		}
-		log.warn("工具视图过滤：未知的 includes/excludes 项被忽略: {}", item);
+	}
+
+	/** {@code *} 通配模式 → 正则：{@code *} → {@code .*}，其余字符按字面（{@code ?} 无通配语义）。 */
+	private static Pattern wildcardPattern(String item) {
+		StringBuilder regex = new StringBuilder();
+		for (int i = 0; i < item.length(); i++) {
+			char c = item.charAt(i);
+			if (c == '*') {
+				regex.append(".*");
+			}
+			else {
+				regex.append(Pattern.quote(String.valueOf(c)));
+			}
+		}
+		return Pattern.compile(regex.toString());
 	}
 
 	private static void applyTool(String toolName, Set<String> target, boolean add) {
@@ -183,14 +198,6 @@ public class McpSourceRegistry {
 		else {
 			target.remove(toolName);
 		}
-	}
-
-	/** 源名 → 其全部工具名（{@code {source}_} 前缀展开）。 */
-	private Set<String> expandSource(String sourceName) {
-		String prefix = McpToolUtils.format(sourceName) + "_";
-		return specsByName.keySet().stream()
-			.filter(name -> name.startsWith(prefix))
-			.collect(Collectors.toCollection(LinkedHashSet::new));
 	}
 
 	/**

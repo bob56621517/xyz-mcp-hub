@@ -69,8 +69,8 @@ class McpProxyDegradationTest {
 
 	@Test
 	void degradedProxySourceCannotBeSelected() {
-		// 上游不可达的 proxy 源已注册但工具为空：includes=[context7] → 空工具集（源存在但无工具 + warn，连接不失败）
-		client = connect("/xyz-hub/mcp?includes=[context7]");
+		// 上游不可达的 proxy 源已注册但工具为空：includes=[context7*] → 空工具集（源存在但无工具 + warn，连接不失败）
+		client = connect("/xyz-hub/mcp?includes=[context7*]");
 		assertThat(client.listTools().tools()).isEmpty();
 	}
 

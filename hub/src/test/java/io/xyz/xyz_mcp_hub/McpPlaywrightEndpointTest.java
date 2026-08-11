@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Playwright 端点集成测试（HostMcp 源，issue #36）：连接单端点
- * {@code /xyz-hub/mcp?includes=[playwright]}，用无头 chromium 打开本地
+ * {@code /xyz-hub/mcp?includes=[playwright*]}，用无头 chromium 打开本地
  * 测试页，按 {@code docs/testing/mcp-service-test-guide.md} 对每个 {@code @Tool} 逐个真实
  * 调用并断言结果合理。会话租约模型下，每次连接先 {@code playwright_web_session(create)} 拿
  * sessionId，所有浏览器工具携带 sessionId 路由；并验证两会话隔离、无 sessionId 报错、
@@ -157,7 +157,7 @@ class McpPlaywrightEndpointTest {
 
 	private McpSyncClient newClient() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/xyz-hub/mcp?includes=[playwright]")
+			.endpoint("/xyz-hub/mcp?includes=[playwright*]")
 			.build();
 		var c = McpClient.sync(transport).build();
 		c.initialize();

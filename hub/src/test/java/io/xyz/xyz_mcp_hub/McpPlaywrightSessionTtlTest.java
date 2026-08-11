@@ -72,7 +72,7 @@ class McpPlaywrightSessionTtlTest {
 
 	private void connect() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/xyz-hub/mcp?includes=[playwright]")
+			.endpoint("/xyz-hub/mcp?includes=[playwright*]")
 			.build();
 		var c = McpClient.sync(transport).build();
 		c.initialize();

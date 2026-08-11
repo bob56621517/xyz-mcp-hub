@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Wikidata MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[wikidata]} 暴露）。
+ * Wikidata MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[wikidata*]} 暴露）。
  *
  * <p>透明代理官方 Wikidata MCP Server（维基数据实体查询），上游默认
  * {@value #DEFAULT_UPSTREAM_URL}，可经 {@code proxy.wikidata.upstream-url} 覆盖

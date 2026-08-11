@@ -3,7 +3,7 @@
 # 复制为 application-local.yml（.gitignore 排除，不入库）后填入真实值；
 # 或将同名环境变量注入。所有 key 均为全大写、下划线分隔（如 BOCHA_API_KEY）。
 # 缺省值导致对应 MCP 源未启用（已注册、目录列出 enabled=false、工具为空，见 ADR-0005
-# 二次修订 / #50；工具经单端点 /xyz-hub/mcp?includes=[源名] 暴露）。
+# 二次修订 / #50；工具经单端点 /xyz-hub/mcp?includes=[工具名/通配] 暴露，如 [bocha*]，源名匹配已退役 #51）。
 
 # 博查搜索 API key（填入则 bocha 源启用）
 BOCHA_API_KEY:

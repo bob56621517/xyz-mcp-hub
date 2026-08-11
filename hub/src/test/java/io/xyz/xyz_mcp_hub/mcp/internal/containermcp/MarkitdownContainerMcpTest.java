@@ -111,10 +111,10 @@ class MarkitdownContainerMcpTest {
 	}
 
 	@Test
-	void includesSourceNameExpandsToConvertTool() {
+	void includesSourceWildcardExposesConvertTool() {
 		McpSourceRegistry registry = new McpSourceRegistry(
 			java.util.List.of(provider(fakeManager, embeddedUpstream())));
-		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[markitdown]"), Optional.empty())))
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[markitdown*]"), Optional.empty())))
 			.containsExactly("markitdown_convert_to_markdown");
 	}
 

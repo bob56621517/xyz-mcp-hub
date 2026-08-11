@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * context7 MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[context7]} 暴露）。
+ * context7 MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[context7*]} 暴露）。
  *
  * <p>透明代理官方 context7 MCP Server（库文档查询），上游默认
  * {@value #DEFAULT_UPSTREAM_URL}，可经 {@code proxy.context7.upstream-url} 覆盖
