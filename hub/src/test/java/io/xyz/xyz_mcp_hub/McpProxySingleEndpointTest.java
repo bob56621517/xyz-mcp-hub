@@ -57,9 +57,17 @@ class McpProxySingleEndpointTest {
 			.run();
 		int upstreamPort = ((WebServerApplicationContext) upstreamContext).getWebServer().getPort();
 		String upstreamUrl = "http://localhost:" + upstreamPort + "/mcp/server/upstream";
-		registry.add("proxy.context7.upstream-url", () -> upstreamUrl);
-		registry.add("proxy.grep-app.upstream-url", () -> upstreamUrl);
-		registry.add("proxy.wikidata.upstream-url", () -> upstreamUrl);
+		// #52 配置驱动：完整 mcp.proxies 列表（app-props 已置空，须显式提供全部条目）。
+		// 三个公共 proxy 源指向内嵌上游；github auth 置空 → 未启用（不参与本测试）
+		registry.add("mcp.proxies[0].name", () -> "context7");
+		registry.add("mcp.proxies[0].upstream-url", () -> upstreamUrl);
+		registry.add("mcp.proxies[1].name", () -> "grep-app");
+		registry.add("mcp.proxies[1].upstream-url", () -> upstreamUrl);
+		registry.add("mcp.proxies[2].name", () -> "wikidata");
+		registry.add("mcp.proxies[2].upstream-url", () -> upstreamUrl);
+		registry.add("mcp.proxies[3].name", () -> "github");
+		registry.add("mcp.proxies[3].upstream-url", () -> upstreamUrl);
+		registry.add("mcp.proxies[3].auth-header", () -> "");
 	}
 
 	@AfterAll

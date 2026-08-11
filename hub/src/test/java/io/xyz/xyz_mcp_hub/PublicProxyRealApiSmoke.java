@@ -9,10 +9,9 @@ import java.util.concurrent.TimeUnit;
 
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ConfigProxyMcpProvider;
 import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ProxyMcpProvider;
-import io.xyz.xyz_mcp_hub.mcp.internal.proxy.network.context7.Context7McpProvider;
-import io.xyz.xyz_mcp_hub.mcp.internal.proxy.network.grepapp.GrepAppMcpProvider;
-import io.xyz.xyz_mcp_hub.mcp.internal.proxy.network.wikidata.WikidataMcpProvider;
+import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ProxySourceConfig;
 
 /**
  * 公共 Proxy 真实上游冒烟（手工运行，非自动测试）。
@@ -31,20 +30,41 @@ public class PublicProxyRealApiSmoke {
 
 	private static final long STEP_TIMEOUT_SECONDS = 25;
 
+	/** context7 官方 Streamable HTTP 端点（默认，与 application.yaml 一致）。 */
+	private static final String CONTEXT7_UPSTREAM_URL = "https://mcp.context7.com/mcp";
+
+	/**
+	 * grep.app 官方 Streamable HTTP 端点（默认，与 application.yaml 一致）。
+	 *
+	 * <p>注意尾斜杠：grep.app 真实 MCP 端点位于根路径，{@code /mcp} 返回 {@code Invalid MCP endpoint}；
+	 * {@link ProxyMcpProvider#connect()} 把空路径默认拼为 {@code /mcp}，故此处带尾斜杠使
+	 * {@code path="/"} 指向根端点。</p>
+	 */
+	private static final String GREPAPP_UPSTREAM_URL = "https://mcp.grep.app/";
+
+	/** Wikidata 官方 Streamable HTTP 端点（默认，与 application.yaml 一致）。 */
+	private static final String WIKIDATA_UPSTREAM_URL = "https://wd-mcp.wmcloud.org/mcp";
+
 	public static void main(String[] args) {
-		System.out.println("[1/4] context7 连通性：" + Context7McpProvider.DEFAULT_UPSTREAM_URL);
+		// #52 配置驱动：经 ProxySourceConfig 建源（免认证公开代理），消灭具体 Provider 类
+		System.out.println("[1/4] context7 连通性：" + CONTEXT7_UPSTREAM_URL);
 		boolean context7Ok = runWithTimeout("context7", PublicProxyRealApiSmoke::smokeContext7);
 
-		System.out.println("[2/4] grep.app 连通性：" + GrepAppMcpProvider.DEFAULT_UPSTREAM_URL);
+		System.out.println("[2/4] grep.app 连通性：" + GREPAPP_UPSTREAM_URL);
 		boolean grepOk = runWithTimeout("grep-app",
-				() -> smokeListTools(new GrepAppMcpProvider(GrepAppMcpProvider.DEFAULT_UPSTREAM_URL)));
+				() -> smokeListTools(provider("grep-app", GREPAPP_UPSTREAM_URL)));
 
-		System.out.println("[3/4] wikidata 连通性：" + WikidataMcpProvider.DEFAULT_UPSTREAM_URL);
+		System.out.println("[3/4] wikidata 连通性：" + WIKIDATA_UPSTREAM_URL);
 		boolean wikiOk = runWithTimeout("wikidata",
-				() -> smokeListTools(new WikidataMcpProvider(WikidataMcpProvider.DEFAULT_UPSTREAM_URL)));
+				() -> smokeListTools(provider("wikidata", WIKIDATA_UPSTREAM_URL)));
 
 		boolean ok = context7Ok && grepOk && wikiOk;
 		System.out.println("[4/4] 结论：" + (ok ? "通过（三服务均连通，context7 调用成功）" : "未通过（见上方输出）"));
+	}
+
+	/** 免认证公开代理源（无 auth-header → 默认启用）。 */
+	private static ProxyMcpProvider provider(String name, String upstreamUrl) {
+		return new ConfigProxyMcpProvider(new ProxySourceConfig(name, upstreamUrl, null, null, null));
 	}
 
 	private static boolean runWithTimeout(String label, Callable<Boolean> step) {
@@ -64,7 +84,7 @@ public class PublicProxyRealApiSmoke {
 	private static boolean smokeContext7() throws Exception {
 		McpSyncClient client = null;
 		try {
-			client = new Context7McpProvider(Context7McpProvider.DEFAULT_UPSTREAM_URL).connect();
+			client = provider("context7", CONTEXT7_UPSTREAM_URL).connect();
 			List<String> tools = toolNames(client);
 			System.out.println("      listTools " + tools.size() + " 个：" + truncate(String.join(", ", tools), 200));
 			String text = callText(client, "resolve-library-id",

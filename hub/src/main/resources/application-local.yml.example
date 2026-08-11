@@ -8,5 +8,6 @@
 # 博查搜索 API key（填入则 bocha 源启用）
 BOCHA_API_KEY:
 
-# GitHub MCP 认证 token（Personal Access Token，填入则 github-full 源启用）
-GITHUB_TOKEN:
+# GitHub MCP 完整认证 header（#52 起经 mcp.proxies auth-header 注入，填入则 github 源启用；
+# 形如 "Authorization: Bearer <token>"；留空 → 源未启用）
+GITHUB_AUTH_HEADER:

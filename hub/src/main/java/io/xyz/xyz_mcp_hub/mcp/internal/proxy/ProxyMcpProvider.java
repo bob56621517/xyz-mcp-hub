@@ -50,8 +50,9 @@ public abstract class ProxyMcpProvider implements McpEndpointProvider {
 	}
 
 	/**
-	 * 工具子集钩子：返回需透传的工具名；空列表表示全量透传上游工具。需要工具子集的
-	 * 子类在此代码里固定列表（ADR-0007 决策 3：不做通用过滤机制）。
+	 * 工具子集钩子（hook，#52）：返回需透传的工具名；空列表表示全量透传上游工具。配置驱动
+	 * 的 {@link ConfigProxyMcpProvider} 由 {@code mcp.proxies} 的 {@code tools-subset} 填充
+	 * （ADR-0007 决策 3：不做通用过滤机制，固定子集即可）。
 	 */
 	public List<String> getToolNames() {
 		return List.of();
@@ -66,6 +67,24 @@ public abstract class ProxyMcpProvider implements McpEndpointProvider {
 			return upstreamTools;
 		}
 		return upstreamTools.stream().filter(tool -> subset.contains(tool.name())).toList();
+	}
+
+	/**
+	 * 工具名映射 hook（#52，ADR-0007 决策 3）：转发到上游前把上游工具名映射为目标调用名。
+	 * 默认原样返回；特殊代理可覆写（如上游改名 / 前缀映射）。注意：Hub 侧注册名是
+	 * {@code {source}_{tool}} 带前缀名，转发时本 hook 处理的是**上游原始工具名**。
+	 */
+	public String mapToolName(String upstreamToolName) {
+		return upstreamToolName;
+	}
+
+	/**
+	 * 错误处理 hook（#52，ADR-0007 决策 3）：上游 {@code callTool} 抛异常时的统一处理。
+	 * 默认重新抛出（经 reactor 转为 MCP 调用错误，与透传语义一致）；特殊代理可覆写为返回
+	 * {@link McpSchema.CallToolResult}（如把已知异常转为带 isError 的结果）。
+	 */
+	public McpSchema.CallToolResult handleCallError(McpSchema.CallToolRequest request, RuntimeException error) {
+		throw error;
 	}
 
 	/**
@@ -110,8 +129,16 @@ public abstract class ProxyMcpProvider implements McpEndpointProvider {
 			List<McpSchema.Tool> tools = selectTools(upstream.listTools().tools());
 			List<McpServerFeatures.AsyncToolSpecification> specs = tools.stream()
 				.map(tool -> new McpServerFeatures.AsyncToolSpecification(tool,
-						(exchange, request) -> Mono.fromCallable(() -> upstream.callTool(
-								new McpSchema.CallToolRequest(tool.name(), request.arguments(), request.meta())))))
+						(exchange, request) -> Mono.fromCallable(() -> {
+							try {
+								// 转发用上游原始名（mapToolName hook 可改目标调用名）；arguments/meta 原样透传
+								return upstream.callTool(new McpSchema.CallToolRequest(
+										mapToolName(tool.name()), request.arguments(), request.meta()));
+							}
+							catch (RuntimeException e) {
+								return handleCallError(request, e);
+							}
+						})))
 				.toList();
 			McpSyncClient previous = discoveredClient;
 			if (previous != null) {

@@ -147,14 +147,16 @@ xyz-mcp-hub/
 - `spring.profiles.active: local`
 - `manifests/mcp-images.yaml` — mvn 生成的构建产物，`ContainerMcp` 运行期读取
 
-`mcp.proxies`（配置 proxy 源）示例（通用转发器按此建源，认证空 → 未启用）：
+`mcp.proxies`（配置 proxy 源）示例（通用转发器按此建源，#52 消灭逐个 Provider 类；auth-header 留空 → 未启用）：
 
 ```yaml
 mcp:
   proxies:
     - name: github
       upstream-url: https://api.githubcopilot.com/mcp/
-      auth-header: "Bearer ${GITHUB_TOKEN}"
+      # 完整认证 header（如 "Authorization: Bearer <token>"，经 GITHUB_AUTH_HEADER 注入）；留空 → 源未启用
+      auth-header: "${GITHUB_AUTH_HEADER:}"
+      # tools-subset: []   # 可选：固定工具子集
 ```
 
 ---
