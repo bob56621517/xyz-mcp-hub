@@ -19,7 +19,7 @@
 | HostMcp | 同宿主（文件/IM/真实浏览器交互如 playwright）；**例外**，仍用官方 SDK | 例外 |
 
 - **薄实现原则**：能力若已有成熟第三方 MCP（或可容器化），就转发/拉容器，绝不 JVM 重造。
-- **工具清单来源**：谁控制变更谁静态——公有云 proxy 启动时发现；容器 mcp（镜像 pin）静态冒烟；rest 包装/native/host 代码声明；组合源启动时解析。
+- **工具清单来源**：谁控制变更谁静态——公有云 proxy 启动时发现；容器 mcp（镜像 pin）静态冒烟；rest 包装/native/host 代码声明。
 - **SSRF**（ADR-0010）：复用现有 `SsrUrlGuard` 迁至 `security` 包；容器代抓用 `check(url)` 预检 + 容器隔离兜底。
 
 ### 端点（ADR-0011）
@@ -27,7 +27,7 @@
 - 单端点：`/xyz-hub/mcp`（Streamable HTTP）+ `/xyz-hub/sse`（HTTP+SSE），**双传输默认开**，共享过滤。
 - `?includes=[jina,bocha_web_search]&excludes=[]`——**下划线平坦名**，源名或工具名，URL/YAML 一致，无参=全量，未知项静默忽略。
 - 工具视图 = 单 McpServer + 每请求/会话按 URL 参数过滤 `listTools`（工具永远注册）。
-- **组合源（specs）**：`mcp.specs` YAML（`specName: {includes, excludes}`）→ 发布新源入目录；静态解析、可嵌套、循环检测。
+- **组合源（specs）**：**已退役（#49）**——`mcp.specs` 组合源机制整体移除（唯一用例 `github-readonly` 定位反复、价值存疑），代码彻底删除、issue #47 打回草稿；目录不再有 `type=composite` / `base` 溯源（见 ADR-0011 修订）。
 - **目录 API** `GET /xyz-hub/catalog`（先行）；web 页 URL 构建器延后（Vaadin 未定）。
 - 旧 `/mcp/builtin/*`、`/mcp/server/*`、`/mcp/config/*` **干净断掉**（彻底重构，无兼容保证）。
 
@@ -47,7 +47,7 @@
 | #25 markitdown 本地子进程（MarkitdownServer） | **作废**（markitdown 容器源，不再子进程） |
 | #24/#22 content 引擎（ConvertEngine/FormatConverter/格式路由） | **整体退役**（content 顶级模块删除） |
 | HtmlToMarkdown / PdfTextExtractor / Readability / 分块 / playwright 渲染编排 | **全部退役** |
-| Space 组合端点（ADR-0008） | 改造为「组合源」（specs）注册 |
+| Space 组合端点（ADR-0008） | 改造为「组合源」（specs）注册 → 组合源也已退役（#49），见 ADR-0011 修订 |
 | 多端点 HubMcpRegistrar | 重写为「单 McpServer + 源注册表 + 工具视图」 |
 | ADR-0003（NativeMcp 为主） | 被 ADR-0009 取代 |
 | playwright 引擎 | **保留**（HostMcp 场景） |
@@ -62,8 +62,8 @@
 
 ## 文档索引
 
-- `CONTEXT.md` — 领域词汇表（四类 MCP、源/组合源/目录/清单、工具选择语法、包结构）
+- `CONTEXT.md` — 领域词汇表（四类 MCP、源/目录/清单、工具选择语法、包结构；组合源已退役）
 - `docs/adr/0009-docker-runtime-four-mcp-types.md` — 四类 MCP + 薄实现原则
 - `docs/adr/0010-security-ssrf-guard.md` — SSRF 防护边界
-- `docs/adr/0011-single-endpoint-url-params-composite-sources.md` — 端点收敛 + 组合源 + 目录
+- `docs/adr/0011-single-endpoint-url-params-composite-sources.md` — 端点收敛 + 目录（2026-08-11 修订：组合源退役）
 - `docs/adr/0012-distribution-multimodule-scope.md` — 分发与仓库结构

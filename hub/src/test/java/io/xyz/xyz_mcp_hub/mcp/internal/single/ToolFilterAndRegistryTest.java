@@ -217,7 +217,7 @@ class ToolFilterAndRegistryTest {
 		assertThat(registry.allToolNames()).isEmpty();
 	}
 
-	// ---- 目录元数据（issue #34）：McpSource 携带 type/protocol/scope/base ----
+	// ---- 目录元数据（issue #34）：McpSource 携带 type/protocol/scope ----
 
 	@Test
 	void nativeSourceCarriesCatalogMetadata() {
@@ -227,7 +227,6 @@ class ToolFilterAndRegistryTest {
 		assertThat(alpha.type()).isEqualTo(SourceType.NATIVE);
 		assertThat(alpha.scope()).isEqualTo(Scope.NETWORK);
 		assertThat(alpha.protocol()).isNull();
-		assertThat(alpha.base()).isNull();
 		assertThat(alpha.specs()).extracting(spec -> spec.tool().name())
 			.containsExactlyInAnyOrder("alpha_toolA", "alpha_toolB");
 	}
@@ -239,7 +238,6 @@ class ToolFilterAndRegistryTest {
 		assertThat(host.type()).isEqualTo(SourceType.HOST);
 		assertThat(host.scope()).isEqualTo(Scope.HOST);
 		assertThat(host.protocol()).isNull();
-		assertThat(host.base()).isNull();
 		assertThat(host.specs()).extracting(spec -> spec.tool().name()).containsExactly("hosty_toolA");
 	}
 

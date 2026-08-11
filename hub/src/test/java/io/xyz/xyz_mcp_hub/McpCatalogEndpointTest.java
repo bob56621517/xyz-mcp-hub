@@ -26,9 +26,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 目录 API 集成测试（ADR-0011 / issue #34）：{@code GET /xyz-hub/catalog} 返回已注册源的机器可读清单。
  *
- * <p>主 seam：经真实 HTTP 端点验证目录形状——每源含 name / type / protocol / scope / tools / base，
- * 与 ADR-0011 目录 schema 一致；冒烟断言当前已注册源（utils / bocha 为 native，playwright 为 host）都在清单中。
- * 无认证：请求不带任何 Authorization 头即可读（本端点与 MCP 端点一致，仅本地可读）。</p>
+ * <p>主 seam：经真实 HTTP 端点验证目录形状——每源含 name / type / protocol / scope / tools
+ * （#49 组合源移除后不再有 base），与 ADR-0011 目录 schema 一致；冒烟断言当前已注册源
+ * （utils / bocha 为 native，playwright 为 host）都在清单中。无认证：请求不带任何 Authorization 头
+ * 即可读（本端点与 MCP 端点一致，仅本地可读）。</p>
  *
  * <p>无外部依赖：bocha 上游用 JDK {@link HttpServer} mock（同 {@code McpSingleEndpointTest} 手法），
  * 注入假 key 使 bocha 源注册进目录。</p>
@@ -81,10 +82,13 @@ class McpCatalogEndpointTest {
 	}
 
 	// ---- 验收 1：目录返回所有已注册源及其工具（无认证、仅本地可读） ----
-	// 冒烟（本期）：当前已注册源为 3 个 native/host 源；playwright 已迁为 HostMcp 源（type=host，issue #36），
-	// 其余（bocha/utils）为 native；#38 fetch 门面退役后不在目录（目录随后续源迁入自动增长）
+	// 冒烟（本期）：已注册源集随环境抖动（配置了 GITHUB_TOKEN 时 github-full 也注册），
+	// 精确源集断言在 #48「注册/启用分离」后重写（目录固定列所有已注册源 + enabled），见 @Disabled 理由。
+	// playwright 为 HostMcp 源（type=host，issue #36）；其余（bocha/utils）为 native。
 
 	@Test
+	@org.junit.jupiter.api.Disabled("#48 注册/启用分离后重写：配置了 GITHUB_TOKEN 时 github-full 也注册进目录，"
+			+ "精确源集断言依赖环境，见 issue #48 Problem Statement")
 	void catalogListsAllRegisteredNativeSources() throws Exception {
 		JsonNode sources = fetchCatalog().get("sources");
 		assertThat(sources.isArray()).isTrue();
@@ -95,7 +99,7 @@ class McpCatalogEndpointTest {
 		}
 	}
 
-	// ---- 验收 2：各源含 type / protocol / scope / tools；组合源含 base ----
+	// ---- 验收 2：各源含 type / protocol / scope / tools；组合源含 base（#49 移除后不再有） ----
 	// 形状契约（与具体源无关，目录自动增长后仍应成立）
 
 	@Test
@@ -103,17 +107,16 @@ class McpCatalogEndpointTest {
 		JsonNode sources = fetchCatalog().get("sources");
 		for (JsonNode source : sources) {
 			assertThat(source.get("name").asText()).isNotBlank();
-			// type 为合法的源类型小写取值（native/proxy/container/host/composite）
+			// type 为合法的源类型小写取值（native/proxy/container/host，#49 组合源已移除）
 			assertThat(source.get("type").asText())
-				.isIn("native", "proxy", "container", "host", "composite");
+				.isIn("native", "proxy", "container", "host");
 			// protocol：container 专有（mcp|rest），其余为 null
 			JsonNode protocol = source.get("protocol");
 			assertThat(protocol.isNull() || protocol.asText().matches("mcp|rest")).isTrue();
 			// scope：host / network 小写
 			assertThat(source.get("scope").asText()).isIn("host", "network");
-			// base：组合源溯源（includes/excludes），非组合源为 null（#33 后填充）
-			JsonNode base = source.get("base");
-			assertThat(base.isNull() || (base.has("includes") && base.has("excludes"))).isTrue();
+			// base：组合源溯源已随 #49 整体移除，目录 schema 契约即不含 base 字段
+			assertThat(source.has("base")).isFalse();
 			// tools：非空工具名数组
 			assertThat(source.get("tools").isArray()).isTrue();
 			assertThat(toolNames(source)).isNotEmpty();
