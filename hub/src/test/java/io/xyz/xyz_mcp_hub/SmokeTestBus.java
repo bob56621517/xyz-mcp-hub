@@ -11,7 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.JinaContainerMcpSmoke;
+import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.JinaSmoke;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
 
 /**
@@ -59,7 +59,7 @@ public class SmokeTestBus {
 						})),
 				new SmokeTask("jina", "jina reader 容器代抓（HTML/PDF→markdown、SSRF 拦截、闲置回收，@requires-docker）",
 						() -> callMain(() -> {
-							JinaContainerMcpSmoke.main(new String[0]);
+							JinaSmoke.main(new String[0]);
 							return null;
 						})));
 

@@ -6,6 +6,7 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.spec.McpSchema;
+import io.xyz.xyz_mcp_hub.docker.ContainerEndpoint;
 import io.xyz.xyz_mcp_hub.docker.ContainerManager;
 import io.xyz.xyz_mcp_hub.docker.ContainerSpec;
 import org.slf4j.Logger;

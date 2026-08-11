@@ -1,9 +1,8 @@
-package io.xyz.xyz_mcp_hub.mcp.internal.containermcp;
-
-import io.xyz.xyz_mcp_hub.docker.ContainerSpec;
+package io.xyz.xyz_mcp_hub.docker;
 
 /**
- * ContainerMcp 的容器端点解析 seam（#37 mcp 型 / #38 rest 型）：{@link ContainerSpec} → 容器服务端点 URL。
+ * docker 顶级模块的容器端点解析 seam（#53 从 containermcp 提升；#37 mcp 型 / #38 rest 型）：
+ * {@link ContainerSpec} → 容器服务端点 URL。
  *
  * <p>默认解析为宿主导航地址——容器绑 {@code 127.0.0.1}、放隔离网络（ADR-0010/0012），Hub 只能经宿主
  * 映射端口到达容器端点。mcp 型（{@link #mcpUrl}）：路径固定 {@code /mcp/}（镜像内 streamable HTTP

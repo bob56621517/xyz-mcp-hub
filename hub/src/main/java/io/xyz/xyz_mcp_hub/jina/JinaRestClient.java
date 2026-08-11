@@ -1,4 +1,4 @@
-package io.xyz.xyz_mcp_hub.mcp.internal.containermcp;
+package io.xyz.xyz_mcp_hub.jina;
 
 import java.io.IOException;
 import java.net.URI;
@@ -8,14 +8,15 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
+import io.xyz.xyz_mcp_hub.docker.ContainerEndpoint;
 import io.xyz.xyz_mcp_hub.docker.ContainerManager;
 import io.xyz.xyz_mcp_hub.docker.ContainerSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * ContainerMcp 的 REST 转发客户端（protocol=rest 型，#38）：把一次 HTTP 请求转发到容器内 REST API，
- * 返回响应体文本（如 jina reader 的 markdown）。
+ * jina 顶级模块的容器 REST 转发客户端（#53 从 containermcp 的 {@code ContainerRestClient} 提升）：
+ * 把一次 HTTP 请求转发到容器内 REST API，返回响应体文本（如 jina reader 的 markdown）。
  *
  * <p>容器生命周期（首用拉起 / 防重拉 / 闲置回收 / 关闭销毁）由 {@code docker} 模块的
  * {@code ContainerManager} 管理，本类只在调用时 {@code ensureRunning} 拉起/复用容器再发请求——
@@ -24,9 +25,9 @@ import org.slf4j.LoggerFactory;
  * <p>非 2xx 响应抛 {@link IllegalStateException}（携带截断后的响应体便于定位），网络失败同样抛；
  * 由工具层捕获转为友好文本（见 {@code JinaTools}）。</p>
  */
-public class ContainerRestClient {
+public class JinaRestClient {
 
-	private static final Logger log = LoggerFactory.getLogger(ContainerRestClient.class);
+	private static final Logger log = LoggerFactory.getLogger(JinaRestClient.class);
 
 	/** 单次请求超时（jina 真实浏览器渲染 + 内容抓取较慢，放宽到 60s）。 */
 	private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
@@ -54,7 +55,7 @@ public class ContainerRestClient {
 	private final HttpClient http;
 
 	/** @param containerManager 首用拉起 + 幂等复用容器（可为 null，测试注入 fake 场景由 fake 承担） */
-	public ContainerRestClient(ContainerEndpoint endpoint, ContainerManager containerManager) {
+	public JinaRestClient(ContainerEndpoint endpoint, ContainerManager containerManager) {
 		this.endpoint = endpoint;
 		this.containerManager = containerManager;
 		this.http = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
