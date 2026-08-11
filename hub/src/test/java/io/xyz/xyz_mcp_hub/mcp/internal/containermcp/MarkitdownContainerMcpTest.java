@@ -16,6 +16,7 @@ import java.util.Optional;
 
 import io.xyz.mcp.testproxy.MarkitdownUpstreamApplication;
 import io.xyz.mcp.testproxy.MarkitdownUpstreamRegistrar;
+import io.xyz.xyz_mcp_hub.docker.ContainerEndpoint;
 import io.xyz.xyz_mcp_hub.docker.ContainerHandle;
 import io.xyz.xyz_mcp_hub.docker.ContainerManager;
 import io.xyz.xyz_mcp_hub.docker.ContainerSpec;

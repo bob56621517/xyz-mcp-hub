@@ -11,6 +11,14 @@
 - 形态：`@SpringBootTest` 连真实本地端点（MCP client），验证 listTools 覆盖工具集 + 各工具调用成功。
 - 示例：`McpUtilsEndpointTest`（utils）、`McpBochaEndpointTest`（bocha Native，远程 API 走 mock）。
 
+### 顶级模块能力层（S1，#53 工具类即源）— plain JUnit 直调
+
+顶级工具模块（bocha/playwright/jina/docker）是纯能力 API，能力测试用 **plain JUnit 直接 new 调用**（不经 Spring/MCP），可注入 mock/fake 或内嵌模拟上游，不触网、不依赖容器：
+
+- 能力类：`BochaClient`/`JinaReader` 等，构造注入 `RestClient.Builder`/fake `ContainerManager` + 内嵌 `HttpServer` 上游。
+- 工具类即源：`BochaTools`/`PlaywrightTools`/`JinaTools` 实现 `McpEndpointProvider`，可 `new` 直接调用 `@Tool` 方法测试（mock 能力类验证元数据与路由）。
+- 示例：`BochaClientTest`（MockRestServiceServer）、`JinaReaderTest`（file:// 本地解析 + 内嵌上游）、`BochaToolsTest`/`JinaToolsTest`（源元数据 + 路由）。
+
 ### 转发服务（ProxyMcp）— mock 联通 + 手工具体测试
 
 透明代理外部公有云 MCP / HTTP 的服务（如 github、context7、grep.app、wikidata）。

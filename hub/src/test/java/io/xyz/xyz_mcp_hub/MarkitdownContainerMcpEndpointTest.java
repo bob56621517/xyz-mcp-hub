@@ -21,7 +21,7 @@ import io.xyz.mcp.testproxy.MarkitdownUpstreamRegistrar;
 import io.xyz.xyz_mcp_hub.docker.ContainerHandle;
 import io.xyz.xyz_mcp_hub.docker.ContainerManager;
 import io.xyz.xyz_mcp_hub.docker.ContainerSpec;
-import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.ContainerEndpoint;
+import io.xyz.xyz_mcp_hub.docker.ContainerEndpoint;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

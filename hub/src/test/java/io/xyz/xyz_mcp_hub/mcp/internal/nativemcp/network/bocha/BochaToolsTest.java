@@ -1,116 +1,61 @@
 package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.bocha;
 
-import org.junit.jupiter.api.BeforeEach;
+import io.xyz.xyz_mcp_hub.bocha.BochaClient;
+import io.xyz.xyz_mcp_hub.mcp.Scope;
+import io.xyz.xyz_mcp_hub.mcp.SourceType;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
- * BochaTools 单元测试：用 MockRestServiceServer 模拟博查 HTTP API，验证工具调用与结果格式化。
+ * BochaTools 工具类即源测试（#53）：验证 {@link BochaTools} 作为 {@code McpEndpointProvider} 的源元数据
+ * （name/scope/enabled/getTools）与 {@code @Tool} 方法对纯能力 {@link BochaClient} 的委托转发。
+ * HTTP 搜索格式化由 {@code BochaClientTest}（能力层）覆盖，此处 mock BochaClient 只测工具类。
  */
 class BochaToolsTest {
 
-	private static final String BASE_URL = "https://api.bochaai.com";
+	private final BochaClient bochaClient = mock(BochaClient.class);
 
-	private static final String WEB_SEARCH_JSON = """
-		{
-		  "code": 200,
-		  "data": {
-		    "webPages": {
-		      "value": [
-		        {
-		          "name": "Spring Boot 官网",
-		          "url": "https://spring.io/projects/spring-boot",
-		          "snippet": "快速构建生产级 Spring 应用。",
-		          "siteName": "Spring"
-		        }
-		      ]
-		    }
-		  }
-		}
-		""";
-
-	private static final String AI_SEARCH_JSON = """
-		{
-		  "code": 200,
-		  "log_id": "test-log",
-		  "messages": [
-		    {
-		      "role": "assistant",
-		      "type": "answer",
-		      "content_type": "text",
-		      "content": "Spring Boot 是流行的 Java 微服务框架。"
-		    },
-		    {
-		      "role": "assistant",
-		      "type": "source",
-		      "content_type": "webpage",
-		      "content": "{\\"webSearchUrl\\":\\"https://bochaai.com/search?q=spring boot\\",\\"value\\":[{\\"name\\":\\"Spring Boot 官网\\",\\"url\\":\\"https://spring.io/projects/spring-boot\\",\\"snippet\\":\\"快速构建生产级 Spring 应用。\\",\\"siteName\\":\\"Spring\\"}]}"
-		    }
-		  ]
-		}
-		""";
-
-	private MockRestServiceServer server;
-	private BochaTools tools;
-
-	@BeforeEach
-	void setUp() {
-		RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
-		server = MockRestServiceServer.bindTo(builder).build();
-		tools = new BochaTools(builder.build());
+	@Test
+	void exposesSourceMetadata() {
+		BochaTools tools = new BochaTools(bochaClient, "test-key");
+		assertThat(tools.getName()).isEqualTo("bocha");
+		assertThat(tools.getScope()).isEqualTo(Scope.NETWORK);
+		// 默认 SourceType.NATIVE（包装 HTTP API），无 protocol
+		assertThat(tools.getSourceType()).isEqualTo(SourceType.NATIVE);
+		assertThat(tools.getProtocol()).isNull();
+		// web_search / ai_search 两个工具注册
+		assertThat(tools.getTools()).hasSize(2);
 	}
 
 	@Test
-	void webSearchFormatsResults() {
-		server.expect(requestTo(BASE_URL + "/v1/web-search"))
-			.andRespond(withSuccess(WEB_SEARCH_JSON, MediaType.APPLICATION_JSON));
-
-		String text = tools.webSearch("spring boot", 5, "oneMonth");
-		assertThat(text).contains("Spring Boot 官网");
-		assertThat(text).contains("spring.io/projects/spring-boot");
-		assertThat(text).contains("Spring");
-		assertThat(text).contains("快速构建生产级");
+	void enabledWithApiKey() {
+		assertThat(new BochaTools(bochaClient, "test-key").isEnabled()).isTrue();
 	}
 
 	@Test
-	void aiSearchIncludesSummary() {
-		server.expect(requestTo(BASE_URL + "/v1/ai-search"))
-			.andRespond(withSuccess(AI_SEARCH_JSON, MediaType.APPLICATION_JSON));
-
-		String text = tools.aiSearch("spring boot", null, null);
-		assertThat(text).contains("AI 总结");
-		assertThat(text).contains("流行的 Java 微服务框架");
-		assertThat(text).contains("Spring Boot 官网");
+	void disabledWithoutApiKey() {
+		assertThat(new BochaTools(bochaClient, "").isEnabled()).isFalse();
+		assertThat(new BochaTools(bochaClient, "  ").isEnabled()).isFalse();
 	}
 
 	@Test
-	void nonSuccessCodeReturnsErrorText() {
-		server.expect(requestTo(BASE_URL + "/v1/web-search"))
-			.andRespond(withSuccess("""
-				{"code": 401, "msg": "unauthorized"}
-				""", MediaType.APPLICATION_JSON));
-
-		String text = tools.webSearch("spring boot", null, null);
-		assertThat(text).contains("博查搜索失败");
-		assertThat(text).contains("401");
-		assertThat(text).contains("unauthorized");
+	void webSearchDelegatesToClient() {
+		when(bochaClient.webSearch("spring boot", 5, "oneMonth")).thenReturn("mock 结果");
+		BochaTools tools = new BochaTools(bochaClient, "test-key");
+		assertThat(tools.webSearch("spring boot", 5, "oneMonth")).isEqualTo("mock 结果");
+		verify(bochaClient).webSearch("spring boot", 5, "oneMonth");
 	}
 
 	@Test
-	void emptyResultReturnsNotice() {
-		server.expect(requestTo(BASE_URL + "/v1/web-search"))
-			.andRespond(withSuccess("""
-				{"code": 200, "data": {"webPages": {"value": []}}}
-				""", MediaType.APPLICATION_JSON));
-
-		String text = tools.webSearch("nothing", null, null);
-		assertThat(text).contains("未找到相关结果");
+	void aiSearchDelegatesToClient() {
+		when(bochaClient.aiSearch("spring boot", null, null)).thenReturn("AI 总结");
+		BochaTools tools = new BochaTools(bochaClient, "test-key");
+		assertThat(tools.aiSearch("spring boot", null, null)).isEqualTo("AI 总结");
+		verify(bochaClient).aiSearch("spring boot", null, null);
 	}
 
 }

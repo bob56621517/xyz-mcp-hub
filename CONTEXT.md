@@ -14,6 +14,7 @@
 |---|---|---|
 | MCP Hub | MCP Hub | 本项目的本体。对外暴露统一 MCP 入口，内部聚合并管理各类 MCP 服务 |
 | 源 | Source | 目录里一个可被 `includes`/`excludes` 引用的工具组。**两个正交状态**：已注册（声明存在——本地工具类 / 配置 proxy / 容器，由代码或配置固定）与 启用（`isEnabled()` 门控：key/token/docker 可用才 true）。目录列出所有已注册源并标 `enabled`；未启用源工具为空 |
+| 工具类即源 | Tools as source | #53：本地工具类（`BochaTools`/`PlaywrightTools`/`JinaTools`）**本身实现** `McpEndpointProvider`——`@Tool` 方法 + 源元数据（name/scope/type/protocol/enabled）合一，`new` 即可直接调用测试；纯能力在顶级模块（`BochaClient`/`WebSessionRegistry`/`JinaReader`），MCP 层不再有 `XxxMcpProvider` 包装类 |
 | 工具视图 | Tool View | 一次 MCP 连接按 URL 参数解析出的工具子集。**工具永远注册在源里**，`listTools` 返回过滤后的视图给 agent |
 | 目录 | Catalog | `GET /xyz-hub/catalog`，机器可读的「源 + 工具」清单。每个源带 `name` / `type`（native/proxy/container，host 并入 native 靠 scope 区分）/ `scope` / `enabled` / `tools`。数据三源汇合：本地工具类声明 / 配置 proxy 启动发现 / 容器静态冒烟 |
 | 清单 | Manifest | `manifests/mcp-images.yaml`（mvn 生成的构建产物）。`ContainerMcp` 按需启动容器的运行规范（`image`/`protocol`/`port`/`hostPort`；`port`=容器内端口、`hostPort`=宿主映射端口 5 位数） |
@@ -114,17 +115,18 @@ xyz-mcp-hub/
 ├── hub/                        ← 核心 JVM（标准 Spring Boot 应用，不进 docker，java -jar 直启）
 │   └── src/main/java/io/xyz/xyz_mcp_hub/
 │       ├── mcp                                 ← 模块 1 API 包（对外）
-│       │   ├── McpEndpointProvider.java        ← SPI 接口（= 源注册；工具类即源）
+│       │   ├── McpEndpointProvider.java        ← SPI 接口（= 源注册；工具类即源，含 getProtocol 容器元数据）
 │       │   ├── Scope.java                      ← HOST / NETWORK
 │       │   └── package-info.java               ← @NamedInterface("api")
 │       ├── mcp.internal                        ← 以下全部不对外
 │       │   ├── single                          ← 单端点 McpServer + 源注册表 + URL 参数工具视图 + 目录 API（ADR-0011，#30~#39；组合源已退役）
 │       │   ├── proxy                           ← 通用转发器（配置驱动，yaml mcp.proxies）
-│       │   └── containermcp                    ← ContainerMcp（读 manifest，按需拉起容器）
-│       ├── docker                              ← 顶级工具模块：容器生命周期管理
-│       ├── playwright                          ← 顶级工具模块：浏览器引擎 + 会话
-│       ├── bocha                               ← 顶级工具模块：bocha 搜索 API（提升）
-│       ├── jina                                ← 顶级工具模块：jina 解析 API（提升）
+│       │   ├── containermcp                    ← ContainerMcp（读 manifest，按需拉起容器；jina rest 型已提升顶级模块，#53）
+│       │   └── nativemcp                       ← 工具类即源与 utils 源（#53：BochaTools/PlaywrightTools 实现 McpEndpointProvider，不再有包装类；HostMcp 预留）
+│       ├── docker                              ← 顶级工具模块：容器生命周期管理 + 容器端点解析（ContainerEndpoint）
+│       ├── playwright                          ← 顶级工具模块：浏览器引擎 + 会话（WebSessionRegistry）
+│       ├── bocha                               ← 顶级工具模块：bocha 搜索 API（纯能力 BochaClient，#53 提升）
+│       ├── jina                               ← 顶级工具模块：jina 解析 API（纯能力 JinaReader：容器代抓 + file:// 本地解析，#53 提升）
 │       ├── security                            ← SsrUrlGuard 等共享安全组件
 │       └── ui                                  ← 模块 2（Vaadin 管理界面，延后决策）
 ├── sidecars/                   ← 容器化 sidecar（本仓库构建的镜像；playwright 属 HostMcp 本机引擎，不在此）
