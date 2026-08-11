@@ -2,6 +2,7 @@ package io.xyz.xyz_mcp_hub.mcp.internal.containermcp;
 
 import java.util.List;
 
+import io.xyz.xyz_mcp_hub.docker.ContainerEndpoint;
 import io.xyz.xyz_mcp_hub.docker.ContainerManager;
 import io.xyz.xyz_mcp_hub.docker.ContainerSpecReader;
 import io.xyz.xyz_mcp_hub.docker.Protocol;

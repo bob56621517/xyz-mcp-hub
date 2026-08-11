@@ -6,14 +6,24 @@ import java.util.Map;
 import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.KeyboardModifier;
 import com.microsoft.playwright.options.MouseButton;
+import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
+import io.xyz.xyz_mcp_hub.mcp.Scope;
 import io.xyz.xyz_mcp_hub.playwright.BrowserSessionHandle;
 import io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * Playwright HostMcp 源的工具集合：按官方 {@code @playwright/mcp} 工具集实现浏览器自动化。
+ * playwright 源的工具类即源（#53）：{@link PlaywrightTools} 本身实现 {@link McpEndpointProvider}——
+ * {@code @Tool} 方法 + 源元数据合一，会话能力由顶级模块 {@link WebSessionRegistry} 承担。
+ * 可 {@code new PlaywrightTools(...)} 直接调用 {@code @Tool} 方法测试（不再有 {@code PlaywrightMcpProvider}
+ * 包装类）。
+ *
+ * <p>源：name=playwright，scope=HOST（同宿主真实浏览器交互，ADR-0009 例外；type 默认 NATIVE 靠
+ * scope=host 表达部署，#50），无外部凭据、始终启用。</p>
  *
  * <p>所有浏览器操作工具都要求 {@code sessionId}（由 {@code web_session(action=create)} 返回），
  * 按 sessionId 路由到隔离的浏览器上下文；无 sessionId 或会话已关闭/回收时返回明确错误。
@@ -21,12 +31,29 @@ import org.springframework.stereotype.Component;
  * {@code data:image/*;base64,...} 形式返回。</p>
  */
 @Component
-public class PlaywrightTools {
+public class PlaywrightTools implements McpEndpointProvider {
 
 	private final WebSessionRegistry registry;
+	private final List<ToolCallback> tools;
 
 	public PlaywrightTools(WebSessionRegistry registry) {
 		this.registry = registry;
+		this.tools = List.of(MethodToolCallbackProvider.builder().toolObjects(this).build().getToolCallbacks());
+	}
+
+	@Override
+	public String getName() {
+		return "playwright";
+	}
+
+	@Override
+	public Scope getScope() {
+		return Scope.HOST;
+	}
+
+	@Override
+	public List<ToolCallback> getTools() {
+		return tools;
 	}
 
 	/**

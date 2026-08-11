@@ -1,5 +1,6 @@
 package io.xyz.xyz_mcp_hub;
 
+import io.xyz.xyz_mcp_hub.bocha.BochaClient;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.bocha.BochaTools;
 import org.springframework.web.client.RestClient;
 
@@ -28,7 +29,7 @@ public class BochaRealApiSmoke {
 			.baseUrl("https://api.bochaai.com")
 			.defaultHeader("Authorization", "Bearer " + key)
 			.build();
-		BochaTools tools = new BochaTools(client);
+		BochaTools tools = new BochaTools(new BochaClient(client), key);
 
 		System.out.println("[2/3] 调用 web_search(\"Spring Boot\", 3, \"noLimit\")");
 		String web = tools.webSearch("Spring Boot", 3, "noLimit");

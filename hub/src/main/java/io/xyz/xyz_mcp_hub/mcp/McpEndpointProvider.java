@@ -2,6 +2,7 @@ package io.xyz.xyz_mcp_hub.mcp;
 
 import java.util.List;
 
+import io.xyz.xyz_mcp_hub.docker.Protocol;
 import org.springframework.ai.tool.ToolCallback;
 
 /**
@@ -40,7 +41,8 @@ public interface McpEndpointProvider {
 	/**
 	 * 该源暴露的工具列表。可通过 {@code MethodToolCallbackProvider} 从 {@code @Tool} 注解方法构建。
 	 *
-	 * <p>{@code NativeMcp} 子类必须实现；{@code ProxyMcpProvider} 不实现——其工具由
+	 * <p>工具类即源（#53）：本地工具类（{@code BochaTools} 等）实现本接口并覆盖本方法返回自身
+	 * {@code @Tool} 方法构建的工具；{@code ProxyMcpProvider} 不实现——其工具由
 	 * {@code McpSourceRegistry} 启动时从上游 {@code listTools} 发现（可选按提供者固定子集）。</p>
 	 */
 	default List<ToolCallback> getTools() {
@@ -55,6 +57,18 @@ public interface McpEndpointProvider {
 	 */
 	default boolean isEnabled() {
 		return true;
+	}
+
+	/**
+	 * 容器接入协议（目录元数据 protocol 字段，container 专有）。默认 {@code null}（非容器源）；
+	 * 容器型工具类即源（如 {@code JinaTools}）覆盖返回 {@link Protocol#REST}（#53 工具类即源——
+	 * 工具类直接实现本接口，不再经 {@code ContainerMcp} 包装类，故 protocol 由工具类声明）。
+	 *
+	 * <p>注意：{@code ContainerMcp} 子类仍覆盖此方法从清单读取（mcp|rest，见
+	 * {@code ContainerMcp#getProtocol}）。</p>
+	 */
+	default Protocol getProtocol() {
+		return null;
 	}
 
 }

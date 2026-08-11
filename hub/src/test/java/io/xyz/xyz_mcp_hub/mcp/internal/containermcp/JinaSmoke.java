@@ -6,31 +6,35 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 
+import io.xyz.xyz_mcp_hub.docker.ContainerEndpoint;
 import io.xyz.xyz_mcp_hub.docker.ContainerHandle;
 import io.xyz.xyz_mcp_hub.docker.ContainerManager;
 import io.xyz.xyz_mcp_hub.docker.ContainerSpec;
 import io.xyz.xyz_mcp_hub.docker.ContainerSpecReader;
 import io.xyz.xyz_mcp_hub.docker.DockerProperties;
 import io.xyz.xyz_mcp_hub.docker.internal.DockerCliOps;
+import io.xyz.xyz_mcp_hub.jina.JinaReader;
+import io.xyz.xyz_mcp_hub.security.SsrUrlGuard;
 import org.springframework.ai.tool.ToolCallback;
 
 /**
- * 真实 docker 冒烟（手工运行，非自动测试）——#38 验收：拉起/复用 jina 容器 + 真实 REST 转发
- * {@code jina_reader}（网页→markdown）+ 容器绑 127.0.0.1 / 隔离网络 + SSRF 预检。
+ * 真实 docker 冒烟（手工运行，非自动测试）——#38/#53 验收：拉起/复用 jina 容器 + 真实 REST 转发
+ * {@code jina_reader}（网页→markdown）+ 容器绑 127.0.0.1 / 隔离网络 + SSRF 预检 + file:// 本地文件解析。
  *
  * <p>就绪等待（#38 冒烟，用户建议）：冒烟先 {@code ContainerManager.ensureRunning} 复用/拉起容器
  * （{@code DockerCliOps} 对已运行同名容器直接复用，不重建），每 10 秒探测一次真实代抓（HTTP 就绪即
  * 容器可用），最多等 5 分钟——覆盖首次 pull + 应用就绪窗口；容器已就绪则直接进入正式测试（快速通过）。
- * 生产代码的 {@code ContainerRestClient} 启动重试为调用层兜底，冒烟的就绪等待是自身前置，两者互补。</p>
+ * 生产代码的 {@code JinaRestClient} 启动重试为调用层兜底，冒烟的就绪等待是自身前置，两者互补。</p>
  *
  * <p>容器保持运行：冒烟结束时**不销毁容器**（便于复用/后续验证）；闲置回收与关闭销毁由
  * {@code ContainerManagerTest} 单测与 {@code MarkitdownContainerMcpSmoke}（#37）覆盖——jina 与
- * markitdown 共用同一 {@code ContainerManager} 生命周期，本冒烟聚焦 jina rest 特有能力。</p>
+ * markitdown 共用同一 {@code ContainerManager} 生命周期，本冒烟聚焦 jina 特有能力。</p>
  *
- * <p>运行：{@code ./mvnw exec:java -pl hub -Dexec.mainClass=io.xyz.xyz_mcp_hub.mcp.internal.containermcp.JinaContainerMcpSmoke -Dexec.classpathScope=test -Dvaadin.skip=true}
+ * <p>运行：{@code ./mvnw exec:java -pl hub -Dexec.mainClass=io.xyz.xyz_mcp_hub.mcp.internal.containermcp.JinaSmoke -Dexec.classpathScope=test -Dvaadin.skip=true}
  * （在仓库根目录执行，保证默认 manifest-path 指向生成的 manifests/mcp-images.yaml；须加 {@code -pl hub}；
  * exec:java 默认工作目录是模块 basedir，另需 {@code -Dexec.workingdir=<仓库根>}）。</p>
  *
@@ -39,7 +43,7 @@ import org.springframework.ai.tool.ToolCallback;
  * 清单需 {@code ./mvnw verify} 生成
  * @requires-web 真实公网代抓（example.com）；容器出网不依赖宿主代理，宿主 fake-ip 代理不影响容器
  */
-public class JinaContainerMcpSmoke {
+public class JinaSmoke {
 
 	private static final String EXAMPLE_URL = "https://example.com";
 	private static final String PRIVATE_URL = "http://127.0.0.1:8080/internal";
@@ -53,7 +57,7 @@ public class JinaContainerMcpSmoke {
 	/** 探测单次请求超时（容器未就绪时快速失败，避免拖慢轮询）。 */
 	private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(15);
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException {
 		DockerProperties props = new DockerProperties();
 		// 保持默认 TTL（600s）：测试期间不触发后台闲置回收，容器测试后保持运行（不销毁）
 		props.setStartTimeoutSeconds(60);
@@ -77,8 +81,10 @@ public class JinaContainerMcpSmoke {
 		System.out.println("      spec: " + jina);
 
 		ContainerManager manager = new ContainerManager(new DockerCliOps(props), props);
-		JinaContainerMcp provider = new JinaContainerMcp(manager, reader, ContainerEndpoint.hostPort());
-		ToolCallback tool = provider.getTools().get(0);
+		JinaReader jinaReader = new JinaReader(manager, reader, ContainerEndpoint.hostPort());
+		JinaTools jinaTools = new JinaTools(jinaReader, new SsrUrlGuard());
+		System.out.println("      jina 源 enabled=" + jinaTools.isEnabled());
+		ToolCallback tool = jinaTools.getTools().get(0);
 
 		System.out.println("[3/8] 就绪等待：复用/拉起容器 + 轮询探测 HTTP 就绪（每 " + READY_PROBE_INTERVAL_S + "s，最多 "
 			+ READY_WAIT_MS / 1000 + "s，覆盖首启 + 首次 pull 窗口）");
@@ -118,8 +124,8 @@ public class JinaContainerMcpSmoke {
 
 		System.out.println("[5/8] 验收：容器绑 127.0.0.1 + 隔离网络（docker inspect）");
 		String cid = manager.managed().stream().map(ContainerHandle::containerId).findFirst().orElse("无");
-		String portBindings = dockerInspect(cid, "{{json .HostConfig.PortBindings}}");
-		String networks = dockerInspect(cid, "{{json .NetworkSettings.Networks}}");
+		String portBindings = dockerInspect(dockerCmd, cid, "{{json .HostConfig.PortBindings}}");
+		String networks = dockerInspect(dockerCmd, cid, "{{json .NetworkSettings.Networks}}");
 		System.out.println("      PortBindings: " + portBindings);
 		System.out.println("      Networks:     " + networks);
 		boolean bound = portBindings.contains("127.0.0.1") && networks.contains("xyz-mcp-hub");
@@ -131,19 +137,22 @@ public class JinaContainerMcpSmoke {
 		boolean ssrf = guarded.contains("SSRF 防护拦截");
 		System.out.println("      判定：" + (ssrf ? "通过（内网地址被拒）" : "失败"));
 
-		System.out.println("[7/8] 验收：非 http(s) url 被 scheme 白名单拦截（jina 只承接网页/PDF）");
-		String fileUrl = tool.call("{\"url\":\"file:///etc/hosts\"}");
-		System.out.println("      结果: " + fileUrl);
-		boolean scheme = fileUrl.contains("SSRF 防护拦截");
-		System.out.println("      判定：" + (scheme ? "通过（file:// 被 scheme 白名单拒）" : "失败"));
+		System.out.println("[7/8] 验收：file:// 本地文件解析（#53：本地读取，非冒烟路径不依赖容器）");
+		Path localFile = Files.createTempFile("jina-smoke", ".md");
+		Files.writeString(localFile, "# 本地文档\n\njina 本地解析", StandardCharsets.UTF_8);
+		String fileResult = tool.call("{\"url\":\"" + localFile.toUri() + "\"}");
+		System.out.println("      结果: " + truncate(fileResult, 200));
+		boolean fileOk = fileResult != null && fileResult.contains("jina 本地解析");
+		System.out.println("      判定：" + (fileOk ? "通过（file:// 本地文件解析返回内容）" : "失败"));
+		Files.deleteIfExists(localFile);
 
 		System.out.println("[8/8] 验收：容器保持运行（冒烟不销毁，便于复用；闲置回收/销毁由 ContainerManagerTest 单测与 markitdown 冒烟覆盖）");
 		boolean kept = manager.managedCount() >= 1;
 		System.out.println("      受管容器数=" + manager.managedCount() + "（应 ≥1，容器保持运行）");
 		System.out.println("      判定：" + (kept ? "通过（容器保持运行）" : "失败"));
 
-		boolean ok = converted && bound && ssrf && scheme && kept;
-		System.out.println("结论：" + (ok ? "通过（拉起/复用 + REST 转发 + 网络隔离 + SSRF 预检 全部可用）"
+		boolean ok = converted && bound && ssrf && fileOk && kept;
+		System.out.println("结论：" + (ok ? "通过（拉起/复用 + REST 转发 + 网络隔离 + SSRF 预检 + file:// 本地解析 全部可用）"
 			: "未通过（见上方输出）"));
 	}
 
@@ -186,8 +195,8 @@ public class JinaContainerMcpSmoke {
 		return run(dockerCmd, "info").exitCode == 0;
 	}
 
-	private static String dockerInspect(String containerId, String format) {
-		return run("docker", "inspect", containerId, "--format", format).output;
+	private static String dockerInspect(String dockerCmd, String containerId, String format) {
+		return run(dockerCmd, "inspect", containerId, "--format", format).output;
 	}
 
 	private static ExecResult run(String... tokens) {

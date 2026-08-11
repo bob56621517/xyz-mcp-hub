@@ -16,8 +16,6 @@ import io.xyz.xyz_mcp_hub.docker.Protocol;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
 import io.xyz.xyz_mcp_hub.mcp.SourceType;
-import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.ContainerMcp;
-import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.NativeMcp;
 import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ProxyMcpProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,11 +77,11 @@ public class McpSourceRegistry {
 
 	public McpSourceRegistry(List<McpEndpointProvider> providers) {
 		// #50 注册/启用分离：不再用 isEnabled() 过滤——所有 provider 演化成 source，enabled 由
-		// isEnabled() 决定（未启用源 specs 为空、工具不进全量表；proxy 上游不可达工具空 + 日志）
+		// isEnabled() 决定（未启用源 specs 为空、工具不进全量表；proxy 上游不可达工具空 + 日志）。
+		// #53 工具类即源：工具类本身实现 McpEndpointProvider（BochaTools/PlaywrightTools/JinaTools），
+		// 与 ProxyMcpProvider / ContainerMcp 子类一并作为输入，不再按类型过滤——任何 McpEndpointProvider
+		// bean 都是源。
 		List<McpSource> sources = providers.stream()
-			// #35 起接纳 ProxyMcp（proxy 工具清单启动时发现）；#37 再迁入 ContainerMcp（容器源）
-			.filter(provider -> provider instanceof NativeMcp
-				|| provider instanceof ProxyMcpProvider || provider instanceof ContainerMcp)
 			.map(this::toSource)
 			.filter(Objects::nonNull)
 			.toList();
@@ -228,11 +226,10 @@ public class McpSourceRegistry {
 				.map(toolCallback -> toPrefixedSpec(sourceName, toolCallback))
 				.toList()
 			: List.of();
-		// #34 目录元数据：type 由 provider 声明；protocol 仅容器源有（mcp|rest，取 provider 声明，见
-		// ContainerMcp#getProtocol，#37/#38）；scope 取 provider 部署范围。未启用容器源（docker 缺失/清单
-		// 缺规格）不取 protocol（requireSpec 会抛，见 ContainerMcp#getProtocol）
-		Protocol protocol = provider instanceof ContainerMcp containerMcp && enabled
-			? containerMcp.getProtocol() : null;
+		// #34 目录元数据：type 由 provider 声明；protocol 仅容器源有（mcp|rest，#53 起统一取 provider
+		// 声明——ContainerMcp 子类从清单读取、容器型工具类即源如 JinaTools 返回常量）；scope 取 provider
+		// 部署范围。未启用容器源（docker 缺失/清单缺规格）不取 protocol（requireSpec 会抛）
+		Protocol protocol = enabled ? provider.getProtocol() : null;
 		return new McpSource(sourceName, provider.getSourceType(), protocol, provider.getScope(), enabled, provider, specs);
 	}
 
