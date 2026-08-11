@@ -32,9 +32,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 无认证：请求不带任何 Authorization 头即可读（本端点与 MCP 端点一致，仅本地可读）。</p>
  *
  * <p>源集冻结（#50 注册/启用分离）：目录列出**所有已注册源**（代码/配置固定），enabled 反映配置
- * 门控——bocha 自给 mock key（enabled=true）、github 置空 token（enabled=false）、proxy 指向不可达
- * （enabled=true 但工具空）、docker 禁用（容器源 enabled=false）。断言不随外部环境（GITHUB_TOKEN /
- * 网络 / docker）抖动。</p>
+ * 门控——bocha 自给 mock key（enabled=true）、github auth-header 置空（enabled=false）、proxy 指向
+ * 不可达（enabled=true 但工具空）、docker 禁用（容器源 enabled=false）。断言不随外部环境
+ * （GITHUB_AUTH_HEADER / 网络 / docker）抖动。</p>
  *
  * <p>无外部依赖：bocha 上游用 JDK {@link HttpServer} mock（同 {@code McpSingleEndpointTest} 手法）；
  * proxy（context7/grep-app/wikidata）上游全部指向不可达地址；docker.enabled=false。</p>
@@ -72,12 +72,17 @@ class McpCatalogEndpointTest {
 		registry.add("bocha.base-url", () -> "http://localhost:" + mockApi.getAddress().getPort());
 		// bocha：opt-in 源，测试自给 mock key → enabled=true
 		registry.add("bocha.api-key", () -> "test-key");
-		// github：opt-in 源，token 置空 → enabled=false
-		registry.add("github.token", () -> "");
-		// proxy 源：全部指向不可达（冻结为 enabled=true 但工具空，不触网）
-		registry.add("proxy.context7.upstream-url", () -> UNREACHABLE);
-		registry.add("proxy.grep-app.upstream-url", () -> UNREACHABLE);
-		registry.add("proxy.wikidata.upstream-url", () -> UNREACHABLE);
+		// #52 配置驱动：完整 mcp.proxies 列表（app-props 已置空，须显式提供全部条目，源集冻结）。
+		// 三个公共 proxy 源指向不可达（enabled=true 但工具空，不触网）；github auth 置空 → enabled=false
+		registry.add("mcp.proxies[0].name", () -> "context7");
+		registry.add("mcp.proxies[0].upstream-url", () -> UNREACHABLE);
+		registry.add("mcp.proxies[1].name", () -> "grep-app");
+		registry.add("mcp.proxies[1].upstream-url", () -> UNREACHABLE);
+		registry.add("mcp.proxies[2].name", () -> "wikidata");
+		registry.add("mcp.proxies[2].upstream-url", () -> UNREACHABLE);
+		registry.add("mcp.proxies[3].name", () -> "github");
+		registry.add("mcp.proxies[3].upstream-url", () -> UNREACHABLE);
+		registry.add("mcp.proxies[3].auth-header", () -> "");
 		// docker 禁用：容器源（markitdown/jina）enabled=false（不依赖 manifest / docker daemon）
 		registry.add("docker.enabled", () -> "false");
 	}
@@ -102,13 +107,13 @@ class McpCatalogEndpointTest {
 
 	@Test
 	void catalogListsAllRegisteredSourcesWithFrozenSet() throws Exception {
-		// 已注册源集 = 代码/配置固定（#50）：native（utils/bocha/playwright）+ proxy（github-full/
+		// 已注册源集 = 代码/配置固定（#50）：native（utils/bocha/playwright）+ proxy（github/
 		// context7/grep-app/wikidata）+ container（markitdown/jina），未启用源也列出
 		JsonNode sources = fetchCatalog().get("sources");
 		assertThat(sources.isArray()).isTrue();
 		assertThat(names(sources)).containsExactlyInAnyOrder(
 				"bocha", "utils", "playwright",
-				"github-full", "context7", "grep-app", "wikidata",
+				"github", "context7", "grep-app", "wikidata",
 				"markitdown", "jina");
 	}
 
@@ -119,8 +124,8 @@ class McpCatalogEndpointTest {
 		JsonNode bocha = sourceByName(sources, "bocha");
 		assertThat(bocha.get("enabled").asBoolean()).isTrue();
 		assertThat(toolNames(bocha)).isNotEmpty();
-		// github-full：token 置空 → enabled=false、tools 空
-		JsonNode github = sourceByName(sources, "github-full");
+		// github：auth-header 置空 → enabled=false、tools 空
+		JsonNode github = sourceByName(sources, "github");
 		assertThat(github.get("enabled").asBoolean()).isFalse();
 		assertThat(toolNames(github)).isEmpty();
 	}
@@ -128,8 +133,8 @@ class McpCatalogEndpointTest {
 	@Test
 	void unenabledSourcesAreListedWithEmptyTools() throws Exception {
 		JsonNode sources = fetchCatalog().get("sources");
-		// 未启用源（github-full/容器源）目录列出、enabled=false、tools 空
-		for (String name : List.of("github-full", "markitdown", "jina")) {
+		// 未启用源（github/容器源）目录列出、enabled=false、tools 空
+		for (String name : List.of("github", "markitdown", "jina")) {
 			JsonNode source = sourceByName(sources, name);
 			assertThat(source.get("enabled").asBoolean()).as("源 %s 应未启用", name).isFalse();
 			assertThat(toolNames(source)).as("源 %s 工具应为空", name).isEmpty();
@@ -197,7 +202,7 @@ class McpCatalogEndpointTest {
 	@Test
 	void proxySourcesAreListedAsProxyType() throws Exception {
 		JsonNode sources = fetchCatalog().get("sources");
-		for (String name : List.of("github-full", "context7", "grep-app", "wikidata")) {
+		for (String name : List.of("github", "context7", "grep-app", "wikidata")) {
 			assertThat(sourceByName(sources, name).get("type").asText()).as("源 %s 应 type=proxy", name)
 				.isEqualTo("proxy");
 		}

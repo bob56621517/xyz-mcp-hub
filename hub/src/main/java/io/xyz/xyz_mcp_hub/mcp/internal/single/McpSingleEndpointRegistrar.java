@@ -1,10 +1,12 @@
 package io.xyz.xyz_mcp_hub.mcp.internal.single;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
+import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ProxySourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcSseServerTransportProvider;
@@ -49,11 +51,14 @@ public class McpSingleEndpointRegistrar implements SmartLifecycle {
 
 	private volatile boolean running = false;
 
-	public McpSingleEndpointRegistrar(List<McpEndpointProvider> providers,
+	public McpSingleEndpointRegistrar(List<McpEndpointProvider> providers, ProxySourceFactory proxySourceFactory,
 			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper) {
 		McpJsonMapper mcpJsonMapper = new JacksonMcpJsonMapper(jsonMapper);
-		// #49 组合源机制已整体移除：注册表只收普通 provider（native/proxy/container）
-		this.server = new McpSingleServer(new McpSourceRegistry(providers), mcpJsonMapper);
+		// #49 组合源机制已整体移除；#52 起 proxy 源由配置驱动（mcp.proxies），Spring 7 不把
+		// List<McpEndpointProvider> 形式 bean 扁平化注入 List 注入点，故经 ProxySourceFactory 显式合并
+		List<McpEndpointProvider> allProviders = new ArrayList<>(providers);
+		allProviders.addAll(proxySourceFactory.sources());
+		this.server = new McpSingleServer(new McpSourceRegistry(allProviders), mcpJsonMapper);
 		this.streamableTransport = WebMvcStreamableServerTransportProvider.builder()
 			.jsonMapper(mcpJsonMapper)
 			.mcpEndpoint(MCP_PATH)

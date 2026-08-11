@@ -16,7 +16,9 @@ Hub 作为 MCP Client 透明代理上游公有云 MCP Server（GitHub、context7
      proxies:
        - name: github
          upstream-url: https://api.githubcopilot.com/mcp/
-         auth-header: "Bearer ${GITHUB_TOKEN}"   # 空 → 未启用（注册/启用分离）
+         # 完整认证 header（如 "Authorization: Bearer <token>"，经 GITHUB_AUTH_HEADER 注入）；
+         # 留空（未设置）→ 源未启用（注册/启用分离）
+         auth-header: "${GITHUB_AUTH_HEADER:}"
          tools-subset: []                        # 可选：固定工具子集
    ```
 

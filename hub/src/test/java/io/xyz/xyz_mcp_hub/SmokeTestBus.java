@@ -26,7 +26,7 @@ import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
  *
  * @requires-web utils 外各任务需真实外部网络（api.bochaai.com / api.githubcopilot.com / mcp.context7.com / mcp.grep.app / wd-mcp.wmcloud.org）
  * @requires-token BOCHA_API_KEY bocha 冒烟；未设置则跳过
- * @requires-token GITHUB_TOKEN github 冒烟；未设置则跳过
+ * @requires-token GITHUB_AUTH_HEADER github 冒烟（完整认证 header）；未设置则跳过
  * @requires-service chromium playwright 冒烟；未安装则跳过
  * @requires-docker jina 冒烟；需本机 docker daemon + jina 镜像（ghcr.io/jina-ai/reader）
  */
@@ -42,7 +42,7 @@ public class SmokeTestBus {
 							BochaRealApiSmoke.main(new String[0]);
 							return null;
 						})),
-				new SmokeTask("github", "GitHub MCP（需 GITHUB_TOKEN）",
+				new SmokeTask("github", "GitHub MCP（需 GITHUB_AUTH_HEADER）",
 						() -> callMain(() -> {
 							GithubRealApiSmoke.main(new String[0]);
 							return null;

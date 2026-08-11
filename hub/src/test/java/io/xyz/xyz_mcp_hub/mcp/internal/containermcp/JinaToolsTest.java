@@ -63,7 +63,8 @@ class JinaToolsTest {
 		when(jinaReader.isAvailable()).thenReturn(true);
 		McpSourceRegistry registry = new McpSourceRegistry(List.of(tools()));
 		assertThat(registry.allToolNames()).containsExactly("jina_reader");
-		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[jina]"), Optional.empty())))
+		// 源名匹配已退役（#51）：要该源全部工具写前缀通配 [jina*]，[jina]（精确工具名）匹配不到
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[jina*]"), Optional.empty())))
 			.containsExactly("jina_reader");
 	}
 

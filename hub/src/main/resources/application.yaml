@@ -33,12 +33,24 @@ bocha:
   # （已注册、目录列出 enabled=false、工具为空，#50 注册/启用分离）
   api-key: ${BOCHA_API_KEY:}
 
-github:
-  # GitHub 官方远程托管 MCP 服务端点（Streamable HTTP，见 ADR-0007）
-  upstream-url: https://api.githubcopilot.com/mcp/
-  # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005 二次修订）；缺省为空，github-full 未启用
-  # （已注册、目录列出 enabled=false、工具为空，#50 注册/启用分离）
-  token: ${GITHUB_TOKEN:}
+mcp:
+  # 配置驱动 proxy 源（#52，ADR-0007 决策 2）：一个条目一个透明转发源，通用转发器从配置建源，
+  # 消灭逐个 Provider 类。字段：name / upstream-url / auth-header（可选）/ tools-subset（可选）。
+  # 新增一个代理服务 = 配置加一行，无需写代码。
+  proxies:
+    - name: github
+      # GitHub 官方远程托管 MCP 服务端点（Streamable HTTP，见 ADR-0007）
+      upstream-url: https://api.githubcopilot.com/mcp/
+      # 完整认证 header（如 "Authorization: Bearer <token>"，经 GITHUB_AUTH_HEADER 注入，见
+      # ADR-0005）；留空（未设置）→ 源未启用（已注册、目录列出 enabled=false、工具为空，#50）
+      auth-header: "${GITHUB_AUTH_HEADER:}"
+    - name: context7
+      upstream-url: https://mcp.context7.com/mcp
+    - name: grep-app
+      # grep.app 真实 MCP 端点位于根路径，须带尾斜杠（/mcp 返回 Invalid MCP endpoint）
+      upstream-url: https://mcp.grep.app/
+    - name: wikidata
+      upstream-url: https://wd-mcp.wmcloud.org/mcp
 
 playwright:
   # 共享 chromium 进程 + 会话租约（见 ADR-0009）。headless 是否无头启动；
