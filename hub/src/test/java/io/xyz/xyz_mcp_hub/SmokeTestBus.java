@@ -54,7 +54,7 @@ public class SmokeTestBus {
 						})),
 				new SmokeTask("playwright", "浏览器自动化（需 chromium）",
 						() -> callMain(() -> {
-							McpPlaywrightEndpointTest.main(new String[0]);
+							PlaywrightSmoke.main(new String[0]);
 							return null;
 						})),
 				new SmokeTask("jina", "jina reader 容器代抓（HTML/PDF→markdown、SSRF 拦截、闲置回收，@requires-docker）",
