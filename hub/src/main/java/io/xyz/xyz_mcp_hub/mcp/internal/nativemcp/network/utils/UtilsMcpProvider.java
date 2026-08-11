@@ -9,7 +9,7 @@ import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.stereotype.Component;
 
 /**
- * Utils 原生 MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[utils]} 暴露）。
+ * Utils 原生 MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[utils*]} 暴露）。
  */
 @Component
 public class UtilsMcpProvider extends NativeMcp {

@@ -77,7 +77,7 @@ public class McpSingleServer {
 	public McpTransportContextExtractor<ServerRequest> contextExtractor() {
 		return request -> {
 			ToolFilter filter = ToolFilter.parse(request.param("includes"), request.param("excludes"));
-			if (filter.isEmpty()) {
+			if (!filter.hasExplicitFilter()) {
 				String sessionId = request.param("sessionId").orElse(null);
 				if (sessionId != null) {
 					ToolFilter stored = sseSessionFilters.get(sessionId);
@@ -96,7 +96,7 @@ public class McpSingleServer {
 	 */
 	public void capturePendingSseFilter(Optional<String> includes, Optional<String> excludes) {
 		ToolFilter filter = ToolFilter.parse(includes, excludes);
-		if (!filter.isEmpty()) {
+		if (filter.hasExplicitFilter()) {
 			pendingSseFilter.set(filter);
 		}
 	}
@@ -113,7 +113,7 @@ public class McpSingleServer {
 			ToolFilter pending = pendingSseFilter.get();
 			pendingSseFilter.remove();
 			String sessionId = UUID.randomUUID().toString();
-			if (pending != null && !pending.isEmpty()) {
+			if (pending != null && pending.hasExplicitFilter()) {
 				sseSessionFilters.put(sessionId, pending);
 			}
 			return new McpServerSession(sessionId, REQUEST_TIMEOUT, sessionTransport, this::handleInitialize,
@@ -199,7 +199,7 @@ public class McpSingleServer {
 
 	private ToolFilter toolFilterFrom(McpAsyncServerExchange exchange) {
 		Object value = exchange.transportContext().get(TOOL_FILTER_KEY);
-		return value instanceof ToolFilter filter ? filter : ToolFilter.EMPTY;
+		return value instanceof ToolFilter filter ? filter : ToolFilter.ALL;
 	}
 
 }

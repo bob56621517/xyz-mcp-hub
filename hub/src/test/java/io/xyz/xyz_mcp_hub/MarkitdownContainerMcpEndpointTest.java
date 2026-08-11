@@ -117,11 +117,11 @@ class MarkitdownContainerMcpEndpointTest {
 		return client.listTools().tools().stream().map(McpSchema.Tool::name).toList();
 	}
 
-	// ---- 验收 1：includes=markitdown 暴露 convert_to_markdown（静态冒烟清单） ----
+	// ---- 验收 1：includes=[markitdown*] 暴露 convert_to_markdown（静态冒烟清单） ----
 
 	@Test
 	void includesMarkitdownExposesOnlyConvertTool() {
-		client = connect("/xyz-hub/mcp?includes=[markitdown]");
+		client = connect("/xyz-hub/mcp?includes=[markitdown*]");
 		assertThat(toolNames()).containsExactly("markitdown_convert_to_markdown");
 	}
 
@@ -135,7 +135,7 @@ class MarkitdownContainerMcpEndpointTest {
 
 	@Test
 	void convertToolCallForwardsToContainerUpstream() {
-		client = connect("/xyz-hub/mcp?includes=[markitdown]");
+		client = connect("/xyz-hub/mcp?includes=[markitdown*]");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("markitdown_convert_to_markdown")
 			.arguments(Map.of("uri", "data:text/plain,hello"))
 			.build());
@@ -151,7 +151,7 @@ class MarkitdownContainerMcpEndpointTest {
 
 	@Test
 	void ssrfPrecheckRejectsPrivateUrlThroughEndpoint() {
-		client = connect("/xyz-hub/mcp?includes=[markitdown]");
+		client = connect("/xyz-hub/mcp?includes=[markitdown*]");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("markitdown_convert_to_markdown")
 			.arguments(Map.of("uri", "http://127.0.0.1:8080/internal"))
 			.build());

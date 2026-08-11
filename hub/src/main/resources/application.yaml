@@ -16,8 +16,9 @@ spring:
       - org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStatelessWebMvcAutoConfiguration
 server:
   tomcat:
-    # URL 参数工具视图（ADR-0011）用 [a,b] 方括号列表语法，Tomcat 需放行方括号字符，
-    # 否则连接 /xyz-hub/mcp?includes=[bocha] 会被 400 拒掉。
+    # URL 参数工具视图（ADR-0011，#51）用 [a,b] 方括号列表语法（项为工具名、支持 * 通配如
+    # [bocha*]，源名匹配已退役），Tomcat 需放行方括号字符，
+    # 否则连接 /xyz-hub/mcp?includes=[bocha*] 会被 400 拒掉。
     relaxed-query-chars:
       - "["
       - "]"

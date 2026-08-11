@@ -25,7 +25,7 @@
 ### 端点（ADR-0011）
 
 - 单端点：`/xyz-hub/mcp`（Streamable HTTP）+ `/xyz-hub/sse`（HTTP+SSE），**双传输默认开**，共享过滤。
-- `?includes=[jina,bocha_web_search]&excludes=[]`——**下划线平坦名**，源名或工具名，URL/YAML 一致，无参=全量，未知项静默忽略。
+- `?includes=[jina*,bocha_web_search]&excludes=[]`——**下划线平坦工具名**，支持 `*` 通配（裸 `*`=全量；源名匹配已退役，#51），URL/YAML 一致，无 includes=全量、显式 `includes=[]`=空集、无 excludes=不减，未知项静默忽略。
 - 工具视图 = 单 McpServer + 每请求/会话按 URL 参数过滤 `listTools`（工具永远注册）。
 - **组合源（specs）**：**已退役（#49）**——`mcp.specs` 组合源机制整体移除（唯一用例 `github-readonly` 定位反复、价值存疑），代码彻底删除、issue #47 打回草稿；目录不再有 `type=composite` / `base` 溯源（见 ADR-0011 修订）。
 - **目录 API** `GET /xyz-hub/catalog`（先行）；web 页 URL 构建器延后（Vaadin 未定）。

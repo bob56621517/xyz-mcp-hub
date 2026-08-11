@@ -31,9 +31,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 单端点 + URL 参数工具视图集成测试（ADR-0011，issue #30）。
  *
  * <p>主 seam：经真实 HTTP 端点验证 {@code /xyz-hub/mcp}（Streamable HTTP）与 {@code /xyz-hub/sse}
- * （HTTP+SSE）双传输共享的 URL 参数过滤行为：includes/excludes 语义（源名展开 / 工具名精确 /
- * [a,b] 列表）、无参数 = 全量、未知项静默忽略 + warn、被过滤工具 call 被拒。旧多端点并存由既有
- * 测试覆盖，本类不触碰旧端点。</p>
+ * （HTTP+SSE）双传输共享的 URL 参数过滤行为（#51 严格语义）：includes/excludes 工具名通配
+ * （源名匹配退役）/ 精确 / [a,b] 列表、参数缺失 = 全量、显式 {@code includes=[]} = 空集、未知项
+ * 静默忽略 + warn、被过滤工具 call 被拒。旧多端点并存由既有测试覆盖，本类不触碰旧端点。</p>
  *
  * <p>无外部依赖：bocha 上游用 JDK {@link HttpServer} mock（同 {@code McpBochaEndpointTest} 手法），
  * 不依赖真实公网与真实 key。</p>
@@ -123,19 +123,19 @@ class McpSingleEndpointTest {
 		return client.listTools().tools().stream().map(McpSchema.Tool::name).toList();
 	}
 
-	// ---- 验收 1：includes 源名展开，连接 /xyz-hub/mcp?includes=[bocha] 只暴露 bocha 工具 ----
+	// ---- 验收 1：includes 工具名通配（源名匹配退役，#51），[bocha*] 只暴露 bocha 工具 ----
 
 	@Test
-	void includesSourceNameExpandsToSourceToolsOnly() {
-		client = connect("/xyz-hub/mcp?includes=[bocha]");
+	void includesSourceWildcardExposesSourceToolsOnly() {
+		client = connect("/xyz-hub/mcp?includes=[bocha*]");
 		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_web_search", "bocha_ai_search");
 	}
 
-	// ---- 验收：includes=[playwright] 只暴露 HostMcp playwright 源浏览器工具集（issue #36） ----
+	// ---- 验收：includes=[playwright*] 只暴露 HostMcp playwright 源浏览器工具集（issue #36） ----
 
 	@Test
 	void includesPlaywrightExposesHostMcpBrowserToolsOnly() {
-		client = connect("/xyz-hub/mcp?includes=[playwright]");
+		client = connect("/xyz-hub/mcp?includes=[playwright*]");
 		assertThat(toolNames()).contains("playwright_web_session", "playwright_browser_navigate",
 				"playwright_browser_snapshot", "playwright_browser_take_screenshot");
 		assertThat(toolNames()).doesNotContain("bocha_web_search", "utils_currentDateTime");
@@ -153,13 +153,13 @@ class McpSingleEndpointTest {
 	}
 
 	@Test
-	void emptyBracketParamsListAllTools() {
+	void explicitEmptyIncludesIsEmptyToolSet() {
+		// #51 严格语义：includes=[] = 空集（无语法糖），不引入任何工具——与「参数缺失 = 全量」严格区分
 		client = connect("/xyz-hub/mcp?includes=[]&excludes=[]");
-		List<String> names = toolNames();
-		assertThat(names).contains("bocha_web_search", "utils_currentDateTime");
+		assertThat(toolNames()).isEmpty();
 	}
 
-	// ---- 验收 3：includes/excludes 语法（源名展开 / 工具名精确 / [a,b] / 未知项忽略） ----
+	// ---- 验收 3：includes/excludes 语法（工具名通配 / 精确 / [a,b] / 未知项忽略，#51） ----
 
 	@Test
 	void includesExactToolNameSelectsSingleTool() {
@@ -169,7 +169,7 @@ class McpSingleEndpointTest {
 
 	@Test
 	void includesListCombinesSourceAndTool() {
-		client = connect("/xyz-hub/mcp?includes=[bocha_web_search,utils]");
+		client = connect("/xyz-hub/mcp?includes=[bocha_web_search,utils*]");
 		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_web_search", "utils_currentDateTime");
 	}
 
@@ -181,8 +181,8 @@ class McpSingleEndpointTest {
 	}
 
 	@Test
-	void excludesSourceNameRemovesAllSourceTools() {
-		client = connect("/xyz-hub/mcp?excludes=[bocha]");
+	void excludesSourceWildcardRemovesAllSourceTools() {
+		client = connect("/xyz-hub/mcp?excludes=[bocha*]");
 		List<String> names = toolNames();
 		assertThat(names).doesNotContain("bocha_web_search", "bocha_ai_search");
 		assertThat(names).contains("utils_currentDateTime");
@@ -190,14 +190,14 @@ class McpSingleEndpointTest {
 
 	@Test
 	void includeThenExcludeExclusionWins() {
-		client = connect("/xyz-hub/mcp?includes=[bocha]&excludes=[bocha_web_search]");
+		client = connect("/xyz-hub/mcp?includes=[bocha*]&excludes=[bocha_web_search]");
 		assertThat(toolNames()).containsExactly("bocha_ai_search");
 	}
 
 	@Test
 	void unknownItemIsSilentlyIgnored() {
 		// 未知项静默忽略（+日志 warn），连接不失败，剩余项照常生效
-		client = connect("/xyz-hub/mcp?includes=[no_such_source,no_such_tool,bocha]");
+		client = connect("/xyz-hub/mcp?includes=[no_such_source,no_such_tool,bocha*]");
 		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_web_search", "bocha_ai_search");
 	}
 
@@ -205,7 +205,7 @@ class McpSingleEndpointTest {
 
 	@Test
 	void sseEndpointFiltersConsistentlyWithMcp() {
-		client = connectSse("/xyz-hub/sse?includes=[bocha]");
+		client = connectSse("/xyz-hub/sse?includes=[bocha*]");
 		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_web_search", "bocha_ai_search");
 	}
 
@@ -220,7 +220,7 @@ class McpSingleEndpointTest {
 
 	@Test
 	void visibleToolCanBeCalled() {
-		client = connect("/xyz-hub/mcp?includes=[bocha]");
+		client = connect("/xyz-hub/mcp?includes=[bocha*]");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("bocha_web_search")
 			.arguments(Map.of("query", "spring boot"))
 			.build());
@@ -232,7 +232,7 @@ class McpSingleEndpointTest {
 	@Test
 	void filteredOutToolCallIsRejected() {
 		// 被过滤的工具对 agent「不存在」：call 返回 JSON-RPC 错误（与 SDK 未知工具行为一致）
-		client = connect("/xyz-hub/mcp?includes=[bocha]");
+		client = connect("/xyz-hub/mcp?includes=[bocha*]");
 		assertThatThrownBy(() -> client.callTool(McpSchema.CallToolRequest.builder("utils_currentDateTime")
 			.arguments(Map.of())
 			.build()))

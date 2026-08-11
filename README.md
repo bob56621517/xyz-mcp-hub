@@ -26,11 +26,11 @@
 
 ### 源（Source）
 
-源是目录里一个可被 `includes`/`excludes` 引用的工具组（一个 `McpEndpointProvider` 实例，native / proxy / container / host 四类；组合源已移除，#49）。Agent CLI 连接单端点 `/xyz-hub/mcp?includes=[源名]`，只暴露所选源的工具视图——按需使用，节约 Token。
+源是目录里一个可被 `includes`/`excludes` 引用的工具组（一个 `McpEndpointProvider` 实例，native / proxy / container / host 四类；组合源已移除，#49）。Agent CLI 连接单端点 `/xyz-hub/mcp?includes=[bocha*]`（工具名通配，源名匹配已退役，#51），只暴露所选工具视图——按需使用，节约 Token。
 
 ### Tool（工具）
 
-Tool 是 MCP 协议中的最小功能单元，工具名统一加 `{source}_` 前缀保证跨源全局唯一。连接 URL 的 `includes`/`excludes` 参数（源名或工具名，下划线平坦名）在运行时选择工具视图；无参数 = 全量。
+Tool 是 MCP 协议中的最小功能单元，工具名统一加 `{source}_` 前缀保证跨源全局唯一。连接 URL 的 `includes`/`excludes` 参数（工具名下划线平坦名，支持 `*` 通配如 `bocha*`；源名匹配已退役，#51）在运行时选择工具视图；无 `includes` = 全量、显式 `includes=[]` = 空集、无 `excludes` = 不减。
 
 ## 项目结构
 
@@ -64,7 +64,7 @@ java -jar hub/target/hub-*.jar
 ## Playwright 浏览器自动化源（HostMcp）
 
 playwright 以 **HostMcp 源**（ADR-0009 例外定位：同宿主真实浏览器交互）注册于单端点
-`/xyz-hub/mcp`，连接方用 `?includes=[playwright]` 暴露浏览器自动化工具集（导航、可访问性快照、
+`/xyz-hub/mcp`，连接方用 `?includes=[playwright*]` 暴露浏览器自动化工具集（导航、可访问性快照、
 点击/输入、截图、网络与控制台监听等，按官方 `@playwright/mcp` 工具集实现），无外部 API key。
 
 前置：首次使用前安装 chromium 二进制：
