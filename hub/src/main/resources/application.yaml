@@ -34,7 +34,7 @@ bocha:
 github:
   # GitHub 官方远程托管 MCP 服务端点（Streamable HTTP，见 ADR-0007）
   upstream-url: https://api.githubcopilot.com/mcp/
-  # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005）；缺省为空，github-full / github-readonly 不注册
+  # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005）；缺省为空，github-full 不注册
   token: ${GITHUB_TOKEN:}
 
 playwright:
@@ -60,17 +60,3 @@ docker:
   scan-interval-seconds: 60
   start-timeout-seconds: 60
   pull-timeout-seconds: 300
-
-# 旧配置驱动的组合端点 Space（ADR-0008）已整体移除（issue #39），被组合源 specs 取代。
-# 组合源 specs（ADR-0011 / issue #33）：mcp.specs 定义一个派生源，发布进目录（type: composite，
-# 带 base 溯源），被 includes/excludes 引用时与普通源等效。项与 URL 参数同一套下划线平坦名
-# 语法——源名（bocha → 该源全部工具）、工具名（bocha_web_search → 精确一个）或组合源名（嵌套）；
-# 启动时静态解析，循环定义被拒 fail-fast。默认不声明任何组合源。
-#   mcp:
-#     specs:
-#       github-readonly:
-#         includes: [github]
-#         excludes: [github_create_issue]
-#       docs:                       # 嵌套：引用上方的组合源 + 普通源
-#         includes: [github-readonly, utils]
-# 未知的 includes/excludes 项静默忽略 + warn（不使连接失败）；组合源名与已注册源冲突会启动失败。

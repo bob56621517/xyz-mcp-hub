@@ -9,7 +9,6 @@ import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTranspor
 import io.modelcontextprotocol.spec.McpSchema;
 import io.xyz.mcp.testproxy.GithubUpstreamMcpApplication;
 import io.xyz.xyz_mcp_hub.mcp.internal.proxy.github.GithubFullMcpProvider;
-import io.xyz.xyz_mcp_hub.mcp.internal.proxy.github.GithubReadonlyMcpProvider;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -27,10 +26,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * GitHub 代理源集成测试（mock 联通，见 {@code docs/testing/mcp-service-test-guide.md}；#39 迁移：
- * 旧多端点已移除，改经单端点 {@code /xyz-hub/mcp?includes=[github-full|github-readonly]} 暴露，
- * 工具名带 {@code github_full_}/{@code github_readonly_} 前缀）：
+ * 旧多端点已移除，改经单端点 {@code /xyz-hub/mcp?includes=[github-full]} 暴露，
+ * 工具名带 {@code github_full_} 前缀；#49 github-readonly 组合源已移除）：
  * 内嵌 GitHub 风格上游 MCP Server（只读 get_me / search_issues + 写 create_issue + 错误 fail），
- * 验证 listTools 透传、isError 透传、只读清单过滤、搜索/写工具调用、Bearer 认证注入与 isEnabled 门控。
+ * 验证 listTools 透传、isError 透传、搜索/写工具调用、Bearer 认证注入与 isEnabled 门控。
  *
  * <p>无外部依赖：内嵌上游模拟，不触网、不需真实 token。</p>
  */
@@ -44,9 +43,6 @@ class McpGithubEndpointTest {
 
 	@Autowired
 	private GithubFullMcpProvider githubFullMcpProvider;
-
-	@Autowired
-	private GithubReadonlyMcpProvider githubReadonlyMcpProvider;
 
 	private McpSyncClient client;
 
@@ -93,14 +89,6 @@ class McpGithubEndpointTest {
 		return ((McpSchema.TextContent) result.content().get(0)).text();
 	}
 
-	private McpSchema.Tool tool(String name) {
-		return McpSchema.Tool.builder()
-			.name(name)
-			.description("测试工具 " + name)
-			.inputSchema(McpSchema.JsonSchema.builder().type("object").additionalProperties(false).build())
-			.build();
-	}
-
 	@Test
 	void fullProviderExposesAllUpstreamTools() {
 		client = connect("/xyz-hub/mcp?includes=[github-full]");
@@ -127,35 +115,6 @@ class McpGithubEndpointTest {
 	}
 
 	@Test
-	void readonlyProviderHasFixedReadonlyToolList() {
-		assertThat(githubReadonlyMcpProvider.getToolNames())
-			.contains("get_me", "get_file_contents", "list_issues", "list_pull_requests", "search_code")
-			.doesNotContain("create_issue", "create_or_update_file", "create_pull_request", "update_issue");
-	}
-
-	@Test
-	void readonlySelectToolsKeepsOnlyReadonlyTools() {
-		var selected = githubReadonlyMcpProvider.selectTools(List.of(tool("get_me"), tool("create_issue")));
-		assertThat(selected).extracting(McpSchema.Tool::name).containsExactly("get_me");
-	}
-
-	@Test
-	void readonlyProviderExposesOnlyReadonlyTools() {
-		client = connect("/xyz-hub/mcp?includes=[github-readonly]");
-		var tools = client.listTools().tools();
-		// 仅暴露固定只读清单内且上游存在的工具，写工具 create_issue 被过滤
-		assertThat(tools).extracting(McpSchema.Tool::name)
-			.containsExactlyInAnyOrder("github_readonly_get_me", "github_readonly_search_issues");
-	}
-
-	@Test
-	void readonlyProviderCallsSearchToolSuccessfully() {
-		client = connect("/xyz-hub/mcp?includes=[github-readonly]");
-		assertThat(callText(client, "github_readonly_search_issues", Map.of("query", "登录")))
-			.isEqualTo("issue #1: 修复登录");
-	}
-
-	@Test
 	void authHeadersInjectedFromConfiguration() {
 		assertThat(githubFullMcpProvider.getAuthHeaders())
 			.containsEntry("Authorization", "Bearer test-token");
@@ -165,7 +124,6 @@ class McpGithubEndpointTest {
 	void disabledWhenTokenMissing() {
 		assertThat(githubFullMcpProvider.isEnabled()).isTrue();
 		assertThat(new GithubFullMcpProvider("http://localhost:1/mcp", " ").isEnabled()).isFalse();
-		assertThat(new GithubReadonlyMcpProvider("http://localhost:1/mcp", null).isEnabled()).isFalse();
 		// 空 token 不产出 "Bearer null"
 		assertThat(new GithubFullMcpProvider("http://localhost:1/mcp", null).getAuthHeaders()).isEmpty();
 	}

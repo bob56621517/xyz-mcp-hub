@@ -7,5 +7,5 @@
 # 博查搜索 API key（必填才注册 bocha 源）
 BOCHA_API_KEY:
 
-# GitHub MCP 认证 token（Personal Access Token，必填才注册 github-full 与 github-readonly 源）
+# GitHub MCP 认证 token（Personal Access Token，必填才注册 github-full 源）
 GITHUB_TOKEN:

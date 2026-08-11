@@ -26,7 +26,7 @@
 
 ### 源（Source）
 
-源是目录里一个可被 `includes`/`excludes` 引用的工具组（一个 `McpEndpointProvider` 实例，native / proxy / container / host / composite 五类）。Agent CLI 连接单端点 `/xyz-hub/mcp?includes=[源名]`，只暴露所选源的工具视图——按需使用，节约 Token。
+源是目录里一个可被 `includes`/`excludes` 引用的工具组（一个 `McpEndpointProvider` 实例，native / proxy / container / host 四类；组合源已移除，#49）。Agent CLI 连接单端点 `/xyz-hub/mcp?includes=[源名]`，只暴露所选源的工具视图——按需使用，节约 Token。
 
 ### Tool（工具）
 

@@ -1,5 +1,7 @@
 # Spec: docker 运行时化重构（四类 MCP + 单端点收敛）
 
+> **⚠ 注记（2026-08-11）**：本文档为历史 spec（#29~#39 实现总纲）。其中**组合源（`mcp.specs`）章节已退役**——组合源机制整体移除（issue #49，唯一用例 github-readonly 定位反复、价值存疑），目录不再有 `type=composite` / `base` 溯源，见 ADR-0011 修订与 CONTEXT.md。
+
 ## Problem Statement
 
 当前实现把引擎重实现堆进 JVM（fetch 门面 + content 引擎：Readability/turndown/pdfbox/playwright 渲染编排/markitdown 子进程），**过度造轮子**，背离薄实现。多端点架构（`/mcp/builtin/*`、`/mcp/server/*`、`/mcp/config/*`）依赖配置 Space 表达工具组合，改一次组合要改一次 YAML。
@@ -66,7 +68,7 @@
    - 双传输：`/mcp` 与 `/sse` 均连通、过滤行为一致。
    - 目录 API：`GET /xyz-hub/catalog` 形状（type/protocol/scope/tools/base 溯源）。
    - SSRF：用户 URL 工具（jina_reader 等）传内网/保留段 URL 被拒并返回友好文本。
-   - 先例：`McpSingleEndpointTest` / `McpCompositeSourceIntegrationTest` / `McpCatalogEndpointTest` / `McpGithubEndpointTest` / `McpBochaEndpointTest` / `McpUtilsEndpointTest` / `McpOldEndpointsRemovedTest`（旧端点 404 契约）。
+   - 先例：`McpSingleEndpointTest` / `McpCatalogEndpointTest` / `McpGithubEndpointTest` / `McpBochaEndpointTest` / `McpUtilsEndpointTest` / `McpOldEndpointsRemovedTest`（旧端点 404 契约）。
 2. **次 seam A = `ContainerManager`（docker 模块）可注入/mock**：单测用 fake（返回假 `baseUrl`），验证 ContainerMcp 装配与工具视图，**不启 docker**；真实容器链路（拉起 jina/markitdown → 转发 → 闲置回收）按 `@requires-docker` 手工 main 冒烟（按 `docs/testing/mcp-service-test-guide.md`），运行结果贴 issue。
    - 先例：`MarkitdownServerTest`（生命周期 mock 手法）、`FetchServiceTest`（本地 HttpServer）。
 3. **次 seam B = SSRF 守卫**：`SsrUrlGuardTest` 迁至 `security` 包沿用（完整保留）。

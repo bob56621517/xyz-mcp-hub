@@ -5,13 +5,13 @@ import java.util.List;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.xyz.xyz_mcp_hub.mcp.internal.proxy.github.GithubFullMcpProvider;
-import io.xyz.xyz_mcp_hub.mcp.internal.proxy.github.GithubReadonlyMcpProvider;
 
 /**
  * GitHub 远程 MCP 冒烟（手工运行，非自动测试）。
  *
  * <p>依赖真实外部网络与 GitHub PAT：直连 GitHub 官方远程托管 MCP 端点
- * {@code https://api.githubcopilot.com/mcp/}，打印上游工具列表并校验固定只读清单命中率。
+ * {@code https://api.githubcopilot.com/mcp/}，打印上游工具列表。（#49 github-readonly 组合源
+ * 移除后不再校验只读清单命中率。）
  * 详见 {@code docs/testing/mcp-service-test-guide.md}。</p>
  *
  * <p>运行：{@code ./mvnw exec:java -Dexec.mainClass=io.xyz.xyz_mcp_hub.GithubRealApiSmoke -Dexec.classpathScope=test -Dvaadin.skip=true}</p>
@@ -25,7 +25,7 @@ public class GithubRealApiSmoke {
 
 	public static void main(String[] args) {
 		String token = System.getenv("GITHUB_TOKEN");
-		System.out.println("[1/3] 依赖检查：GITHUB_TOKEN "
+		System.out.println("[1/2] 依赖检查：GITHUB_TOKEN "
 				+ (token == null || token.isBlank() ? "未设置，退出" : "已设置"));
 		if (token == null || token.isBlank()) {
 			return;
@@ -34,7 +34,7 @@ public class GithubRealApiSmoke {
 		McpSyncClient client = null;
 		List<String> names;
 		try {
-			System.out.println("[2/3] 连接 " + UPSTREAM_URL + " 并 listTools");
+			System.out.println("[2/2] 连接 " + UPSTREAM_URL + " 并 listTools");
 			client = new GithubFullMcpProvider(UPSTREAM_URL, token).connect();
 			names = client.listTools().tools().stream().map(McpSchema.Tool::name).toList();
 		}
@@ -49,15 +49,9 @@ public class GithubRealApiSmoke {
 			}
 		}
 		System.out.println("      上游工具总数：" + names.size());
+		names.forEach(name -> System.out.println("      " + name));
 
-		System.out.println("[3/3] 校验固定只读清单命中率");
-		var readonly = new GithubReadonlyMcpProvider(UPSTREAM_URL, token).getToolNames();
-		long hit = readonly.stream().filter(names::contains).count();
-		readonly.forEach(name -> System.out.println("      " + name + (names.contains(name) ? " ✓" : " ✗")));
-
-		System.out.println("结论：" + (hit > 0
-				? "通过（命中 " + hit + "/" + readonly.size() + "）"
-				: "未通过（只读清单无命中，见上方输出）"));
+		System.out.println("结论：通过（上游 listTools 成功，工具 " + names.size() + " 个）");
 	}
 
 }

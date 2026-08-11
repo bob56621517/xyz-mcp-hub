@@ -14,10 +14,10 @@ import org.springframework.web.servlet.function.ServerResponse;
  * 目录 API（ADR-0011 / issue #34）：{@code GET /xyz-hub/catalog} 机器可读的「源 + 工具」清单，
  * URL 构建器与任意客户端的枚举事实源。
  *
- * <p>每源：{@code name} / {@code type}（native/proxy/container/host/composite，小写）/
+ * <p>每源：{@code name} / {@code type}（native/proxy/container/host，小写）/
  * {@code protocol}（container 专有，mcp|rest，其余为 null）/ {@code scope}（host/network，小写）/
- * {@code tools}（带 {@code {source}_} 前缀的注册工具名，排序稳定）/ {@code base}（组合源溯源，
- * 非组合源为 null，#33 起组合源填充）。</p>
+ * {@code tools}（带 {@code {source}_} 前缀的注册工具名，排序稳定）。组合源已整体移除（#49），
+ * 目录不再有 {@code type=composite} / {@code base} 溯源字段。</p>
  *
  * <p>数据三源汇合（代码声明 + 静态冒烟 + 启动发现）：本期目录反映源注册表（{@link McpSourceRegistry}）
  * 中已注册的「代码声明」源（当前为 native 源）；目录直接读注册表，proxy / container 源迁入并注册进
@@ -57,7 +57,7 @@ public class CatalogEndpoint {
 	}
 
 	/**
-	 * 源 → 目录条目（包级可见供纯单测验证非空 protocol / base 的序列化映射，见
+	 * 源 → 目录条目（包级可见供纯单测验证非空 protocol 的序列化映射，见
 	 * {@code CatalogEndpointTest}）。
 	 */
 	static CatalogSource map(McpSourceRegistry.McpSource source) {
@@ -66,8 +66,7 @@ public class CatalogEndpoint {
 				source.type().value(),
 				source.protocol() == null ? null : source.protocol().name().toLowerCase(Locale.ROOT),
 				source.scope().name().toLowerCase(Locale.ROOT),
-				source.specs().stream().map(spec -> spec.tool().name()).sorted().toList(),
-				source.base());
+				source.specs().stream().map(spec -> spec.tool().name()).sorted().toList());
 	}
 
 	/** 目录响应体：{@code {"sources": [...]}}。 */
@@ -80,8 +79,7 @@ public class CatalogEndpoint {
 			String type,
 			String protocol,
 			String scope,
-			List<String> tools,
-			CompositeBase base) {
+			List<String> tools) {
 	}
 
 }

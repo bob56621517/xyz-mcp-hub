@@ -1,8 +1,5 @@
 package io.xyz.xyz_mcp_hub.mcp.internal.single;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +8,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -41,13 +37,8 @@ import org.springframework.ai.tool.ToolCallback;
  * listTools 失败）时该源不入注册表、应用照常启动，不拖垮启动（#35）；容器源 docker 运行时缺失/清单缺
  * 规格时 isEnabled=false 不入注册表（#37）。</p>
  *
- * <p>每个源携带目录元数据（{@link McpSource}：type / protocol / scope / base，issue #34），供目录
+ * <p>每个源携带目录元数据（{@link McpSource}：type / protocol / scope，issue #34），供目录
  * API（{@link CatalogEndpoint}）读取；proxy / container 源迁入后目录自动增长。</p>
- *
- * <p>#33 起组合源（{@code mcp.specs} YAML）一并发布入注册表：每个 spec 启动时静态解析（可嵌套、
- * 循环定义被拒并 fail-fast）为派生源，目录元数据 {@code type=composite}、{@code base} 携带过滤溯源；
- * 被 {@code includes} / {@code excludes} 引用时与普通源等效（展开其解析出的工具）。组合源不新增工具
- * 名——其工具规格复用底层普通源的同名规格（同一 call handler），故不入 {@code specsByName}。</p>
  *
  * <p>解析规则（与 ADR-0011 完全一致）：先精确匹配工具名，再按源名展开该源全部工具；未知项静默
  * 忽略 + 日志 warn；无参数 = 全量。</p>
@@ -57,24 +48,22 @@ public class McpSourceRegistry {
 	private static final Logger log = LoggerFactory.getLogger(McpSourceRegistry.class);
 
 	/**
-	 * 单个源：源名 + 目录元数据（type/protocol/scope/base，ADR-0011）+ 底层 provider + 带前缀的工具规格。
+	 * 单个源：源名 + 目录元数据（type/protocol/scope，ADR-0011）+ 底层 provider + 带前缀的工具规格。
 	 *
 	 * <p>元数据模型（#34）为 #35/#36/#37 共用、一次定稿：{@code type} 由 provider 声明
 	 * （{@link McpEndpointProvider#getSourceType()}）；{@code protocol} 为 container 专有（mcp|rest，
-	 * 非容器源为 null）；{@code scope} 取 provider 部署范围（组合源派生自其聚合工具的部署范围）；
-	 * {@code base} 为组合源溯源（#33 起组合源填充，非组合源为 null）。</p>
+	 * 非容器源为 null）；{@code scope} 取 provider 部署范围。组合源已整体移除（#49），不再有 {@code base}
+	 * 溯源字段。</p>
 	 *
 	 * @param name 源名（URL includes/excludes 引用单元）
-	 * @param type 源类型（native/proxy/container/host/composite）
+	 * @param type 源类型（native/proxy/container/host）
 	 * @param protocol 容器接入协议（container 专有，其余为 null）
 	 * @param scope 部署范围（host/network）
-	 * @param provider 底层端点提供者（组合源为 null——组合源不实现 {@link McpEndpointProvider}）
-	 * @param specs 工具规格（普通源为带 {@code {source}_} 前缀的全量注册；组合源为解析出的底层工具规格）
-	 * @param base 组合源溯源（非组合源为 null，组合源为 includes/excludes 溯源）
+	 * @param provider 底层端点提供者
+	 * @param specs 工具规格（带 {@code {source}_} 前缀的全量注册）
 	 */
 	public record McpSource(String name, SourceType type, Protocol protocol, Scope scope,
-			McpEndpointProvider provider, List<McpServerFeatures.AsyncToolSpecification> specs,
-			CompositeBase base) {
+			McpEndpointProvider provider, List<McpServerFeatures.AsyncToolSpecification> specs) {
 	}
 
 	private final List<McpSource> sources;
@@ -82,31 +71,11 @@ public class McpSourceRegistry {
 	/** 带前缀工具名 → 工具规格（全量注册）。 */
 	private final Map<String, McpServerFeatures.AsyncToolSpecification> specsByName;
 
-	/** 源名 → 源（普通源 + 组合源，用于源名展开）。 */
+	/** 源名 → 源（用于源名展开）。 */
 	private final Map<String, McpSource> sourcesByName;
 
-	/** 组合源定义（{@code mcp.specs} 配置，空 = 不发布组合源）。 */
-	private final Map<String, CompositeSpec> specDefs;
-
-	/** 仅普通源（非组合）的源名 → 源（组合源静态解析时用于展开普通源 / 名字冲突检测）。 */
-	private final Map<String, McpSource> baseSourcesByName;
-
-	/** 工具名 → 所属普通源的部署范围（组合源 scope 派生用）。 */
-	private final Map<String, Scope> toolScopes;
-
-	/** 无组合源配置：等价于传入空 specDefs（行为与未配置完全一致）。 */
 	public McpSourceRegistry(List<McpEndpointProvider> providers) {
-		this(providers, Map.of());
-	}
-
-	/**
-	 * 组装源注册表：先由 provider 演化普通源，再按 {@code mcp.specs} 静态解析并发布组合源（#33）。
-	 *
-	 * @param providers 普通源 provider（native / proxy / container）
-	 * @param specDefs 组合源定义（组合源名 → includes/excludes），空 map 不发布任何组合源
-	 */
-	public McpSourceRegistry(List<McpEndpointProvider> providers, Map<String, CompositeSpec> specDefs) {
-		List<McpSource> baseSources = providers.stream()
+		List<McpSource> sources = providers.stream()
 			// #35 起接纳 ProxyMcp（proxy 工具清单启动时发现）；#37 再迁入 ContainerMcp（容器源）
 			.filter(provider -> provider instanceof NativeMcp
 				|| provider instanceof ProxyMcpProvider || provider instanceof ContainerMcp)
@@ -114,21 +83,15 @@ public class McpSourceRegistry {
 			.map(this::toSource)
 			.filter(Objects::nonNull)
 			.toList();
-		this.specDefs = specDefs == null ? Map.of() : Map.copyOf(specDefs);
-		this.baseSourcesByName = baseSources.stream()
-			.collect(Collectors.toMap(McpSource::name, Function.identity(), (a, b) -> a));
-		this.specsByName = baseSources.stream()
+		this.sources = sources;
+		this.specsByName = sources.stream()
 			.flatMap(source -> source.specs().stream())
 			.collect(Collectors.toMap(spec -> spec.tool().name(), Function.identity(), (a, b) -> {
 				log.warn("工具名 {} 由多个源提供，保留先注册者", a.tool().name());
 				return a;
 			}));
-		this.toolScopes = baseSources.stream()
-			.flatMap(source -> source.specs().stream().map(spec -> Map.entry(spec.tool().name(), source.scope())))
-			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a));
-		List<McpSource> compositeSources = resolveComposites();
-		this.sources = Stream.concat(baseSources.stream(), compositeSources.stream()).toList();
-		this.sourcesByName = buildSourcesByName();
+		this.sourcesByName = sources.stream()
+			.collect(Collectors.toMap(McpSource::name, Function.identity(), (a, b) -> a));
 	}
 
 	/** 全部已注册源。 */
@@ -183,8 +146,8 @@ public class McpSourceRegistry {
 	}
 
 	/**
-	 * 解析单项：先精确匹配工具名，再按源名展开——普通源为 {@code {source}_} 前缀匹配其全部工具，组合源
-	 * 展开其启动时解析出的工具名；未知项静默忽略 + 日志 warn。
+	 * 解析单项：先精确匹配工具名，再按源名展开——普通源为 {@code {source}_} 前缀匹配其全部工具；
+	 * 未知项静默忽略 + 日志 warn。
 	 */
 	private void applyItem(String item, Set<String> target, boolean add) {
 		if (specsByName.containsKey(item)) {
@@ -193,16 +156,8 @@ public class McpSourceRegistry {
 		}
 		McpSource source = sourcesByName.get(item);
 		if (source != null) {
-			if (source.type() == SourceType.COMPOSITE) {
-				// 组合源：直接展开解析出的工具（普通源工具名，同一 call handler）
-				for (McpServerFeatures.AsyncToolSpecification spec : source.specs()) {
-					applyTool(spec.tool().name(), target, add);
-				}
-			}
-			else {
-				for (String name : expandSource(source.name())) {
-					applyTool(name, target, add);
-				}
+			for (String name : expandSource(source.name())) {
+				applyTool(name, target, add);
 			}
 			return;
 		}
@@ -218,110 +173,12 @@ public class McpSourceRegistry {
 		}
 	}
 
-	/** 普通源名 → 其全部工具名（{@code {source}_} 前缀展开）。 */
+	/** 源名 → 其全部工具名（{@code {source}_} 前缀展开）。 */
 	private Set<String> expandSource(String sourceName) {
 		String prefix = McpToolUtils.format(sourceName) + "_";
 		return specsByName.keySet().stream()
 			.filter(name -> name.startsWith(prefix))
 			.collect(Collectors.toCollection(LinkedHashSet::new));
-	}
-
-	// ---- 组合源静态解析（issue #33） ----
-
-	/**
-	 * 按 {@code mcp.specs} 配置解析并发布组合源（{@code type=composite}，带 {@code base} 溯源）。
-	 * 解析规则（ADR-0011）：先精确匹配工具名，再按普通源名 {@code {source}_} 前缀展开，嵌套组合源递归
-	 * 解析；循环定义抛 {@link IllegalStateException} fail-fast；未知项静默忽略 + warn。组合源不新增工具
-	 * 名——其工具规格复用底层普通源的同名规格。
-	 */
-	private List<McpSource> resolveComposites() {
-		if (specDefs.isEmpty()) {
-			return List.of();
-		}
-		Map<String, Set<String>> memo = new LinkedHashMap<>();
-		List<McpSource> composites = new ArrayList<>();
-		for (Map.Entry<String, CompositeSpec> entry : specDefs.entrySet()) {
-			String name = entry.getKey();
-			CompositeSpec spec = entry.getValue();
-			if (baseSourcesByName.containsKey(name)) {
-				throw new IllegalStateException("组合源名与已注册源冲突: " + name + "（mcp.specs 与 provider 名不能重复）");
-			}
-			Set<String> toolNames = resolveComposite(name, new LinkedHashSet<>(), memo);
-			List<McpServerFeatures.AsyncToolSpecification> specs = toolNames.stream()
-				.map(specsByName::get)
-				.filter(Objects::nonNull)
-				.toList();
-			composites.add(new McpSource(name, SourceType.COMPOSITE, null, compositeScope(specs), null, specs,
-				new CompositeBase(spec.includes(), spec.excludes())));
-		}
-		log.info("组合源已发布 {} 个: {}", composites.size(), composites.stream().map(McpSource::name).toList());
-		return composites;
-	}
-
-	/**
-	 * 递归解析一个组合源为具体工具名集合（memo 化，保证每个组合源只解析一次）；命中 {@code visiting}
-	 * 中的名字即定义循环，抛 {@link IllegalStateException}。
-	 */
-	private Set<String> resolveComposite(String name, Set<String> visiting, Map<String, Set<String>> memo) {
-		Set<String> cached = memo.get(name);
-		if (cached != null) {
-			return cached;
-		}
-		if (!visiting.add(name)) {
-			throw new IllegalStateException("组合源循环引用: " + String.join(" → ", visiting) + " → " + name);
-		}
-		CompositeSpec spec = specDefs.get(name);
-		Set<String> tools = new LinkedHashSet<>();
-		for (String include : spec.includes()) {
-			tools.addAll(resolveItem(include, visiting, memo));
-		}
-		for (String exclude : spec.excludes()) {
-			tools.removeAll(resolveItem(exclude, visiting, memo));
-		}
-		visiting.remove(name);
-		memo.put(name, Set.copyOf(tools));
-		return tools;
-	}
-
-	/**
-	 * 解析一个平坦项为具体工具名集合：精确工具名 → 自身；普通源名 → {@code {source}_} 前缀全量；
-	 * 组合源名 → 递归解析；未知项 → 空集 + warn。
-	 */
-	private Set<String> resolveItem(String item, Set<String> visiting, Map<String, Set<String>> memo) {
-		if (specsByName.containsKey(item)) {
-			return Set.of(item);
-		}
-		McpSource baseSource = baseSourcesByName.get(item);
-		if (baseSource != null) {
-			return expandSource(item);
-		}
-		if (specDefs.containsKey(item)) {
-			return resolveComposite(item, visiting, memo);
-		}
-		log.warn("组合源解析：未知的 includes/excludes 项被忽略: {}", item);
-		return Set.of();
-	}
-
-	/**
-	 * 组合源 scope 派生：全部工具所属普通源均为 {@link Scope#HOST} 时为 host，否则 network
-	 * （聚合了网络可达工具的组合源是 network；空组合源按 network 处理）。
-	 */
-	private Scope compositeScope(List<McpServerFeatures.AsyncToolSpecification> specs) {
-		boolean allHost = !specs.isEmpty() && specs.stream()
-			.map(spec -> toolScopes.getOrDefault(spec.tool().name(), Scope.NETWORK))
-			.allMatch(scope -> scope == Scope.HOST);
-		return allHost ? Scope.HOST : Scope.NETWORK;
-	}
-
-	/** 源名 → 源：普通源（保序）+ 组合源（追加）。 */
-	private Map<String, McpSource> buildSourcesByName() {
-		Map<String, McpSource> byName = new LinkedHashMap<>(baseSourcesByName);
-		for (McpSource source : sources) {
-			if (source.type() == SourceType.COMPOSITE) {
-				byName.put(source.name(), source);
-			}
-		}
-		return Collections.unmodifiableMap(byName);
 	}
 
 	/**
@@ -348,9 +205,9 @@ public class McpSourceRegistry {
 			.toList();
 		// #34 目录元数据：type 由 provider 声明；protocol 仅容器源有（mcp|rest，取 provider 声明，见
 		// ContainerMcp#getProtocol，#37/#38；isEnabled 已保证规格存在，getProtocol 不抛）；
-		// scope 取 provider 部署范围；base 仅组合源填充（见 resolveComposites），普通源恒 null
+		// scope 取 provider 部署范围
 		Protocol protocol = provider instanceof ContainerMcp containerMcp ? containerMcp.getProtocol() : null;
-		return new McpSource(sourceName, provider.getSourceType(), protocol, provider.getScope(), provider, specs, null);
+		return new McpSource(sourceName, provider.getSourceType(), protocol, provider.getScope(), provider, specs);
 	}
 
 	/**
@@ -363,7 +220,7 @@ public class McpSourceRegistry {
 			List<McpServerFeatures.AsyncToolSpecification> specs = proxy.discoverTools().stream()
 				.map(spec -> renamePrefixed(sourceName, spec))
 				.toList();
-			return new McpSource(sourceName, proxy.getSourceType(), null, proxy.getScope(), proxy, specs, null);
+			return new McpSource(sourceName, proxy.getSourceType(), null, proxy.getScope(), proxy, specs);
 		}
 		catch (RuntimeException e) {
 			log.error("proxy 源 {} 启动发现失败，源降级（不入注册表）: {}", sourceName, e.getMessage());
