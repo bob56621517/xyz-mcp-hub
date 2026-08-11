@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 博查搜索原生 MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[bocha]} 暴露）。
+ * 博查搜索原生 MCP 源提供者（工具经单端点 {@code /xyz-hub/mcp?includes=[bocha*]} 暴露）。
  *
  * <p>原生实现博查搜索：直接调用博查 Web Search / AI Search HTTP API，工具见 {@link BochaTools}。
  * 缺少 {@code bocha.api-key} 时源未启用（已注册、目录列出 enabled=false、工具为空，见 ADR-0005 二次修订 / #50）。</p>

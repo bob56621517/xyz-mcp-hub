@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Utils 原生源集成测试（#39 迁移：旧多端点 {@code /mcp/builtin/utils} 已移除，改经单端点
- * {@code /xyz-hub/mcp?includes=[utils]} 暴露，工具名带 {@code utils_} 前缀）。
+ * {@code /xyz-hub/mcp?includes=[utils*]} 暴露，工具名带 {@code utils_} 前缀）。
  *
  * <p>{@code @DirtiesContext(BEFORE_CLASS)}：本类无自定义动态属性，会复用共享 Spring context；
  * 完整套件中其他类创建第二个 context（Vaadin/Atmosphere 全局状态）会把共享 context 的单端点传输置为
@@ -39,7 +39,7 @@ class McpUtilsEndpointTest {
 
 	private McpSyncClient connect() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/xyz-hub/mcp?includes=[utils]")
+			.endpoint("/xyz-hub/mcp?includes=[utils*]")
 			.build();
 		var client = McpClient.sync(transport).build();
 		client.initialize();

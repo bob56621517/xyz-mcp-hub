@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 发现注册进单端点源注册表后的行为：</p>
  *
  * <ol>
- *   <li>{@code includes=context7} 只暴露 {@code context7_*} 工具并可调用转发（验收 1）</li>
+ *   <li>{@code includes=[context7*]}（通配，源名匹配退役 #51）只暴露 {@code context7_*} 工具并可调用转发（验收 1）</li>
  *   <li>启动时 listTools 发现生效，无参连接全量可见（验收 2）</li>
  *   <li>转发工具名 {@code {source}_{tool}} 全局唯一（含连字符源名 grep-app 归一化为下划线前缀），
  *       可被 {@code excludes} 精确减（验收 4）</li>
@@ -90,14 +90,14 @@ class McpProxySingleEndpointTest {
 	}
 
 	@Test
-	void includesSourceNameExposesOnlyThatProxySourceTools() {
-		client = connect("/xyz-hub/mcp?includes=[context7]");
+	void includesSourceWildcardExposesOnlyThatProxySourceTools() {
+		client = connect("/xyz-hub/mcp?includes=[context7*]");
 		assertThat(toolNames()).containsExactlyInAnyOrder("context7_echo", "context7_fail");
 	}
 
 	@Test
 	void discoveredToolCanBeCalledAndForwardsToUpstream() {
-		client = connect("/xyz-hub/mcp?includes=[context7]");
+		client = connect("/xyz-hub/mcp?includes=[context7*]");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("context7_echo")
 			.arguments(Map.of("message", "你好"))
 			.build());
@@ -108,7 +108,7 @@ class McpProxySingleEndpointTest {
 
 	@Test
 	void upstreamErrorPropagatesIsError() {
-		client = connect("/xyz-hub/mcp?includes=[context7]");
+		client = connect("/xyz-hub/mcp?includes=[context7*]");
 		var result = client.callTool(McpSchema.CallToolRequest.builder("context7_fail").arguments(Map.of()).build());
 		assertThat(result.isError()).isTrue();
 		var text = (McpSchema.TextContent) result.content().get(0);
@@ -125,13 +125,13 @@ class McpProxySingleEndpointTest {
 
 	@Test
 	void hyphenSourceNameNormalizesToUnderscorePrefix() {
-		client = connect("/xyz-hub/mcp?includes=[grep-app]");
+		client = connect("/xyz-hub/mcp?includes=[grep_app*]");
 		assertThat(toolNames()).containsExactlyInAnyOrder("grep_app_echo", "grep_app_fail");
 	}
 
 	@Test
 	void excludesRemovesExactlyOneToolFromProxySource() {
-		client = connect("/xyz-hub/mcp?includes=[context7]&excludes=[context7_echo]");
+		client = connect("/xyz-hub/mcp?includes=[context7*]&excludes=[context7_echo]");
 		assertThat(toolNames()).containsExactly("context7_fail");
 	}
 

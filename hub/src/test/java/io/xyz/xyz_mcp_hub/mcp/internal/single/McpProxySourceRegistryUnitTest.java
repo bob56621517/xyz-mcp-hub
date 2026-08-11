@@ -127,8 +127,8 @@ class McpProxySourceRegistryUnitTest {
 		assertThat(registry.allToolNames()).containsExactly("native_toolA");
 		assertThat(registry.sources()).extracting(McpSourceRegistry.McpSource::name)
 			.containsExactlyInAnyOrder("unreachable", "native");
-		// 未启用的 proxy 源被 URL 引用得空集（源存在但无工具），连接不失败
-		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[unreachable]"), Optional.empty())))
+		// 工具为空的 proxy 源被通配引用得空集（匹配不到任何工具 + warn），连接不失败
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[unreachable*]"), Optional.empty())))
 			.isEmpty();
 	}
 
@@ -156,8 +156,9 @@ class McpProxySourceRegistryUnitTest {
 		var spec = registry.specByName("fake_proxy_hello");
 		assertThat(spec).isPresent();
 		assertThat(spec.get().tool().description()).isEqualTo("假上游工具");
-		// 源名可展开该源全部工具（URL 参数语法）
-		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[fake-proxy]"), Optional.empty())))
+		// 源名匹配退役（#51）：要该源全部工具写归一化前缀通配 [fake_proxy*]
+		// （连字符源名 fake-proxy 归一化为下划线 fake_proxy，见 prefixedToolName）
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[fake_proxy*]"), Optional.empty())))
 			.containsExactly("fake_proxy_hello");
 	}
 

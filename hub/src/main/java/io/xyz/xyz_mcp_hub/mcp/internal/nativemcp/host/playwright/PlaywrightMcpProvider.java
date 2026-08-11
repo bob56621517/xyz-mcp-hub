@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>在 Hub JVM 内直接驱动无头 chromium（见 {@link io.xyz.xyz_mcp_hub.playwright.WebSessionRegistry}），工具集见
  * {@link PlaywrightTools}。作为 HostMcp 源（{@link HostMcp}，{@code Scope.HOST}）经单端点
- * {@code /xyz-hub/mcp} 注册，连接方用 {@code includes=[playwright]} 暴露浏览器自动化工具集。
+ * {@code /xyz-hub/mcp} 注册，连接方用 {@code includes=[playwright*]} 暴露浏览器自动化工具集。
  * 无外部凭据，端点始终注册。</p>
  */
 @Component

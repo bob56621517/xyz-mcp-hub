@@ -16,8 +16,9 @@ import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 工具视图过滤纯逻辑单测：URL 参数解析（{@link ToolFilter}）与源注册表解析
- * （{@link McpSourceRegistry#visibleToolNames}），覆盖端到端测试不便表达的边界情况。
+ * 工具视图过滤纯逻辑单测（#51 严格语义）：URL 参数解析（{@link ToolFilter}，参数缺失 vs 显式空集）与
+ * 源注册表解析（{@link McpSourceRegistry#visibleToolNames}，工具名通配、源名匹配退役），覆盖端到端
+ * 测试不便表达的边界情况。
  *
  * <p>无外部依赖（不启动 Spring 上下文，用假 {@link NativeMcp} provider）。</p>
  */
@@ -122,48 +123,92 @@ class ToolFilterAndRegistryTest {
 		return new McpSourceRegistry(List.of(alpha, beta));
 	}
 
-	// ---- ToolFilter.parse ----
+	// ---- ToolFilter.parse：参数缺失 vs 显式空集（#51 无语法糖） ----
 
 	@Test
 	void parseBracketsList() {
-		var filter = ToolFilter.parse(Optional.of("[alpha,toolA]"), Optional.of("[]"));
-		assertThat(filter.includes()).containsExactly("alpha", "toolA");
-		assertThat(filter.excludes()).isEmpty();
+		var filter = ToolFilter.parse(Optional.of("[alpha_toolA,*toolC]"), Optional.of("[]"));
+		assertThat(filter.includes()).contains(List.of("alpha_toolA", "*toolC"));
+		assertThat(filter.excludes()).contains(List.of());
 	}
 
 	@Test
 	void parseNoBracketsSingleItem() {
-		var filter = ToolFilter.parse(Optional.of("alpha"), Optional.empty());
-		assertThat(filter.includes()).containsExactly("alpha");
+		var filter = ToolFilter.parse(Optional.of("alpha_toolA"), Optional.empty());
+		assertThat(filter.includes()).contains(List.of("alpha_toolA"));
 		assertThat(filter.excludes()).isEmpty();
 	}
 
 	@Test
-	void parseEmptyAndMissingAreEmpty() {
-		assertThat(ToolFilter.parse(Optional.empty(), Optional.empty()).isEmpty()).isTrue();
-		assertThat(ToolFilter.parse(Optional.of("[]"), Optional.of("")).isEmpty()).isTrue();
+	void missingParamsAreAbsent() {
+		// 参数缺失 → includes/excludes 均为 Optional.empty()（缺失 ≡ 全量 / 不减）
+		var filter = ToolFilter.parse(Optional.empty(), Optional.empty());
+		assertThat(filter.includes()).isEmpty();
+		assertThat(filter.excludes()).isEmpty();
+		assertThat(filter.hasExplicitFilter()).isFalse();
+		assertThat(filter.includesAbsent()).isTrue();
+	}
+
+	@Test
+	void explicitEmptyBracketIsPresentEmptyList() {
+		// includes=[]：显式空集（有参数），与「参数缺失」严格区分——#51 无语法糖的核心
+		var filter = ToolFilter.parse(Optional.of("[]"), Optional.of(""));
+		assertThat(filter.includes()).contains(List.of());
+		assertThat(filter.excludes()).contains(List.of());
+		assertThat(filter.hasExplicitFilter()).isTrue();
+		assertThat(filter.includesAbsent()).isFalse();
 	}
 
 	@Test
 	void parseTrimsWhitespace() {
-		var filter = ToolFilter.parse(Optional.of("[ alpha , toolA ]"), Optional.empty());
-		assertThat(filter.includes()).containsExactly("alpha", "toolA");
+		var filter = ToolFilter.parse(Optional.of("[ alpha_toolA , alpha_toolB ]"), Optional.empty());
+		assertThat(filter.includes()).contains(List.of("alpha_toolA", "alpha_toolB"));
 	}
 
-	// ---- McpSourceRegistry.visibleToolNames ----
+	// ---- McpSourceRegistry.visibleToolNames（#51 严格语义：通配 + 源名退役） ----
 
 	@Test
-	void noFilterIsAllTools() {
+	void noParamsIsAllTools() {
 		McpSourceRegistry registry = registryWithAlphaAndBeta();
-		assertThat(registry.visibleToolNames(ToolFilter.EMPTY))
+		assertThat(registry.visibleToolNames(ToolFilter.ALL))
 			.containsExactlyInAnyOrder("alpha_toolA", "alpha_toolB", "beta_toolC");
 	}
 
 	@Test
-	void sourceNameExpandsAllItsTools() {
+	void explicitEmptyIncludesIsEmptyToolSet() {
+		// includes=[] = 空集（无语法糖），不引入任何工具——与「参数缺失 = 全量」严格区分
 		McpSourceRegistry registry = registryWithAlphaAndBeta();
-		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[alpha]"), Optional.empty())))
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[]"), Optional.empty())))
+			.isEmpty();
+	}
+
+	@Test
+	void bareWildcardIsAllTools() {
+		McpSourceRegistry registry = registryWithAlphaAndBeta();
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[*]"), Optional.empty())))
+			.containsExactlyInAnyOrder("alpha_toolA", "alpha_toolB", "beta_toolC");
+	}
+
+	@Test
+	void prefixWildcardSelectsSourceTools() {
+		// 源名匹配退役：要某源全部工具写 源名*（替代旧的源名展开）
+		McpSourceRegistry registry = registryWithAlphaAndBeta();
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[alpha*]"), Optional.empty())))
 			.containsExactlyInAnyOrder("alpha_toolA", "alpha_toolB");
+	}
+
+	@Test
+	void suffixWildcardMatches() {
+		McpSourceRegistry registry = registryWithAlphaAndBeta();
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[*toolC]"), Optional.empty())))
+			.containsExactly("beta_toolC");
+	}
+
+	@Test
+	void middleWildcardMatches() {
+		McpSourceRegistry registry = registryWithAlphaAndBeta();
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[alpha_*B]"), Optional.empty())))
+			.containsExactly("alpha_toolB");
 	}
 
 	@Test
@@ -174,35 +219,59 @@ class ToolFilterAndRegistryTest {
 	}
 
 	@Test
-	void excludesSubtractFromAllWhenIncludesEmpty() {
+	void wildcardInExcludesSubtractsFromAll() {
 		McpSourceRegistry registry = registryWithAlphaAndBeta();
-		Set<String> visible = registry.visibleToolNames(ToolFilter.parse(Optional.empty(), Optional.of("[beta]")));
-		assertThat(visible).containsExactlyInAnyOrder("alpha_toolA", "alpha_toolB");
+		Set<String> visible = registry.visibleToolNames(ToolFilter.parse(Optional.empty(), Optional.of("[alpha*]")));
+		assertThat(visible).containsExactly("beta_toolC");
 	}
 
 	@Test
-	void sourceNamePrefixIsNotConfusedWithExactTool() {
-		// 源名 alpha 展开的是 alpha_*；若某工具名恰好是 alpha 本身（无下划线），不会被源展开误伤
+	void explicitEmptyExcludesSubtractsNothing() {
 		McpSourceRegistry registry = registryWithAlphaAndBeta();
-		Set<String> visible = registry.visibleToolNames(ToolFilter.parse(Optional.of("[alpha,beta_toolC]"), Optional.empty()));
+		Set<String> visible = registry.visibleToolNames(ToolFilter.parse(Optional.empty(), Optional.of("[]")));
 		assertThat(visible).containsExactlyInAnyOrder("alpha_toolA", "alpha_toolB", "beta_toolC");
 	}
 
 	@Test
-	void unknownItemsAreIgnoredWithoutThrowing() {
+	void questionMarkIsLiteralNotWildcard() {
+		// ? 不支持：按字面处理，工具名不含 ? → 匹配不到 → 空集 + warn
+		McpSourceRegistry registry = registryWithAlphaAndBeta();
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[alpha_tool?]"), Optional.empty())))
+			.isEmpty();
+	}
+
+	@Test
+	void sourceNameIsNoLongerExpanded() {
+		// 源名匹配退役（#51）：includes=[alpha]（无星号）不再展开 alpha 源，按未知项忽略 → 空集
+		McpSourceRegistry registry = registryWithAlphaAndBeta();
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[alpha]"), Optional.empty())))
+			.isEmpty();
+	}
+
+	@Test
+	void unknownWildcardItemIsIgnoredWithoutThrowing() {
+		// 通配项匹配不到任何工具 → 未知项 warn，不使连接失败，剩余项照常生效
 		McpSourceRegistry registry = registryWithAlphaAndBeta();
 		Set<String> visible = registry.visibleToolNames(
-				ToolFilter.parse(Optional.of("[no_such_source,alpha,no_such_tool]"), Optional.empty()));
+			ToolFilter.parse(Optional.of("[no_such*,alpha*,no_such_tool*]"), Optional.empty()));
 		assertThat(visible).containsExactlyInAnyOrder("alpha_toolA", "alpha_toolB");
+	}
+
+	@Test
+	void wildcardInExcludesMatchingNothingSubtractsNothing() {
+		McpSourceRegistry registry = registryWithAlphaAndBeta();
+		// excludes 通配匹配不到任何工具 → 未知项 warn，不减任何工具
+		Set<String> visible = registry.visibleToolNames(ToolFilter.parse(Optional.empty(), Optional.of("[*search]")));
+		assertThat(visible).containsExactlyInAnyOrder("alpha_toolA", "alpha_toolB", "beta_toolC");
 	}
 
 	@Test
 	void visibilityCheckRespectsFilter() {
 		McpSourceRegistry registry = registryWithAlphaAndBeta();
-		ToolFilter onlyAlpha = ToolFilter.parse(Optional.of("[alpha]"), Optional.empty());
+		ToolFilter onlyAlpha = ToolFilter.parse(Optional.of("[alpha*]"), Optional.empty());
 		assertThat(registry.isVisible("alpha_toolA", onlyAlpha)).isTrue();
 		assertThat(registry.isVisible("beta_toolC", onlyAlpha)).isFalse();
-		assertThat(registry.isVisible("beta_toolC", ToolFilter.EMPTY)).isTrue();
+		assertThat(registry.isVisible("beta_toolC", ToolFilter.ALL)).isTrue();
 	}
 
 	@Test
@@ -218,6 +287,7 @@ class ToolFilterAndRegistryTest {
 		assertThat(registry.sources()).extracting(McpSourceRegistry.McpSource::name).containsExactly("alpha");
 		assertThat(registry.sources().get(0).enabled()).isFalse();
 		assertThat(registry.allToolNames()).isEmpty();
+		assertThat(registry.visibleToolNames(ToolFilter.ALL)).isEmpty();
 	}
 
 	@Test
@@ -229,8 +299,8 @@ class ToolFilterAndRegistryTest {
 			}
 		};
 		McpSourceRegistry registry = new McpSourceRegistry(List.of(alpha));
-		// 未启用源被 URL 引用得空集（源存在但无工具），连接不失败
-		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[alpha]"), Optional.empty())))
+		// 未启用源 specs 为空：通配 [alpha*] 匹配不到任何工具 → 未知项 warn + 空集，连接不失败
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[alpha*]"), Optional.empty())))
 			.isEmpty();
 	}
 

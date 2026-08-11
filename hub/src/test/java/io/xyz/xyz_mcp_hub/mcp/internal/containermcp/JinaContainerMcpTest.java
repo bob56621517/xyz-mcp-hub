@@ -135,10 +135,10 @@ class JinaContainerMcpTest {
 	}
 
 	@Test
-	void includesSourceNameExpandsToReaderTool() {
+	void includesSourceWildcardExposesReaderTool() {
 		McpSourceRegistry registry = new McpSourceRegistry(
 			List.of(provider(fakeManager, embeddedUpstream())));
-		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[jina]"), Optional.empty())))
+		assertThat(registry.visibleToolNames(ToolFilter.parse(Optional.of("[jina*]"), Optional.empty())))
 			.containsExactly("jina_reader");
 	}
 

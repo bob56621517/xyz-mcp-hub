@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Bocha 原生源集成测试（#39 迁移：旧多端点 {@code /mcp/builtin/bocha} 已移除，改经单端点
- * {@code /xyz-hub/mcp?includes=[bocha]} 暴露，工具名带 {@code bocha_} 前缀）。
+ * {@code /xyz-hub/mcp?includes=[bocha*]} 暴露，工具名带 {@code bocha_} 前缀）。
  *
  * <p>用 JDK 内置 {@link HttpServer} 起一个本地 mock 博查 API，并通过
  * {@code bocha.base-url} 指向它——工具调用不依赖真实 API key 与外部网络，但完整走通
@@ -86,7 +86,7 @@ class McpBochaEndpointTest {
 
 	private McpSyncClient connect() {
 		var transport = HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
-			.endpoint("/xyz-hub/mcp?includes=[bocha]")
+			.endpoint("/xyz-hub/mcp?includes=[bocha*]")
 			.build();
 		var client = McpClient.sync(transport).build();
 		client.initialize();
