@@ -49,7 +49,7 @@ mcp:
         - source: utils
           include: [currentDateTime]   # 只拉这一个
         - source: bocha
-          exclude: [bocha_ai_search]   # 整端点减这一个
+          exclude: [bocha_search]   # 整端点减这一个
 ```
 
 - **include/exclude 为精确工具名枚举**（本任务）；通配符模式匹配留待未来，配置形态不变

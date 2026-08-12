@@ -177,7 +177,7 @@ class McpCatalogEndpointTest {
 	@Test
 	void bochaToolsArePrefixedAndSorted() throws Exception {
 		JsonNode bocha = sourceByName(fetchCatalog().get("sources"), "bocha");
-		assertThat(toolNames(bocha)).containsExactly("bocha_ai_search", "bocha_web_search");
+		assertThat(toolNames(bocha)).containsExactly("bocha_search");
 	}
 
 	@Test

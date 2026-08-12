@@ -36,7 +36,7 @@ MCP 的 Streamable HTTP 端点 URL **原生支持 query param**——工具选�
 ```
 
 - `includes`/`excludes`（复数）：`includes` 先选（并集），`excludes` 再减。**无 `includes` ≡ `[*]`（全量）；`includes=[]` = 空集**（不引入任何工具，无语法糖——显式空 ≠ 全量）；无 `excludes` ≡ `[]`（不减）。
-- 项 = **工具名**（下划线平坦名，如 `bocha_web_search`）。**源名匹配已退役**——要某源全部工具写 `bocha*`。
+- 项 = **工具名**（下划线平坦名，如 `bocha_search`）。**源名匹配已退役**——要某源全部工具写 `bocha*`。
 - **通配符**：工具名支持 `*`（裸 `*` = 全量 / `bocha*` 前缀 / `*search` 后缀 / `bo*search` 中间）。**不支持 `?`**。`*` 在 URL query 中合法、无需编码。
 - 列表：URL 用 `[a,b]` 方括号。**统一用下划线，无点分隔**（MCP 工具名规范不允许点，暴露名与语法名同一套体系，零映射）。
 - 未知项：静默忽略 + 日志 warn（不使连接失败）。

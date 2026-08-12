@@ -11,9 +11,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * BochaTools 工具类即源测试（#53）：验证 {@link BochaTools} 作为 {@code McpEndpointProvider} 的源元数据
- * （name/scope/enabled/getTools）与 {@code @Tool} 方法对纯能力 {@link BochaClient} 的委托转发。
- * HTTP 搜索格式化由 {@code BochaClientTest}（能力层）覆盖，此处 mock BochaClient 只测工具类。
+ * BochaTools 工具类即源测试（#53，ADR-0015）：验证 {@link BochaTools} 作为 {@code McpEndpointProvider} 的
+ * 源元数据（name/scope/enabled/getTools）与单 {@code search} 工具的 type 路由、默认值映射（mock
+ * BochaClient 只测工具层；HTTP 格式化由 {@code BochaClientTest} 能力层覆盖）。
  */
 class BochaToolsTest {
 
@@ -27,8 +27,8 @@ class BochaToolsTest {
 		// 默认 SourceType.NATIVE（包装 HTTP API），无 protocol
 		assertThat(tools.getSourceType()).isEqualTo(SourceType.NATIVE);
 		assertThat(tools.getProtocol()).isNull();
-		// web_search / ai_search 两个工具注册
-		assertThat(tools.getTools()).hasSize(2);
+		// 合成后单 search 工具（ADR-0015）
+		assertThat(tools.getTools()).hasSize(1);
 	}
 
 	@Test
@@ -43,19 +43,38 @@ class BochaToolsTest {
 	}
 
 	@Test
-	void webSearchDelegatesToClient() {
-		when(bochaClient.webSearch("spring boot", 5, "oneMonth")).thenReturn("mock 结果");
+	void searchDefaultsToAiWithDefaultCount() {
+		// type 缺省 → ai；count 缺省 → 20；answer 恒 true
+		when(bochaClient.aiSearch("spring boot", 20, null, null, true)).thenReturn("AI 总结");
 		BochaTools tools = new BochaTools(bochaClient, "test-key");
-		assertThat(tools.webSearch("spring boot", 5, "oneMonth")).isEqualTo("mock 结果");
-		verify(bochaClient).webSearch("spring boot", 5, "oneMonth");
+		assertThat(tools.search(null, "spring boot", null, null, null, null)).isEqualTo("AI 总结");
+		verify(bochaClient).aiSearch("spring boot", 20, null, null, true);
 	}
 
 	@Test
-	void aiSearchDelegatesToClient() {
-		when(bochaClient.aiSearch("spring boot", null, null)).thenReturn("AI 总结");
+	void searchTypeWebRoutesToWebSearch() {
+		// type=web → webSearch，summary 恒 true，include/exclude 透传
+		when(bochaClient.webSearch("spring boot", 20, null, true, "qq.com", "m.163.com")).thenReturn("网页列表");
 		BochaTools tools = new BochaTools(bochaClient, "test-key");
-		assertThat(tools.aiSearch("spring boot", null, null)).isEqualTo("AI 总结");
-		verify(bochaClient).aiSearch("spring boot", null, null);
+		assertThat(tools.search("web", "spring boot", null, null, "qq.com", "m.163.com")).isEqualTo("网页列表");
+		verify(bochaClient).webSearch("spring boot", 20, null, true, "qq.com", "m.163.com");
+	}
+
+	@Test
+	void searchTypeAiIgnoresExclude() {
+		// type=ai：exclude 官网不支持 → 不传给能力层（aiSearch 无 exclude 参数），include 透传
+		when(bochaClient.aiSearch("spring boot", 20, null, "qq.com", true)).thenReturn("AI 总结");
+		BochaTools tools = new BochaTools(bochaClient, "test-key");
+		assertThat(tools.search("ai", "spring boot", null, null, "qq.com", "m.163.com")).isEqualTo("AI 总结");
+		verify(bochaClient).aiSearch("spring boot", 20, null, "qq.com", true);
+	}
+
+	@Test
+	void searchPassesExplicitCountAndFreshness() {
+		when(bochaClient.webSearch("spring boot", 50, "oneMonth", true, null, null)).thenReturn("网页列表");
+		BochaTools tools = new BochaTools(bochaClient, "test-key");
+		assertThat(tools.search("web", "spring boot", 50, "oneMonth", null, null)).isEqualTo("网页列表");
+		verify(bochaClient).webSearch("spring boot", 50, "oneMonth", true, null, null);
 	}
 
 }

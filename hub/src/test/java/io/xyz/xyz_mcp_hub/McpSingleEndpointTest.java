@@ -128,7 +128,7 @@ class McpSingleEndpointTest {
 	@Test
 	void includesSourceWildcardExposesSourceToolsOnly() {
 		client = connect("/xyz-hub/mcp?includes=[bocha*]");
-		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_web_search", "bocha_ai_search");
+		assertThat(toolNames()).containsExactly("bocha_search");
 	}
 
 	// ---- 验收：includes=[playwright*] 只暴露 HostMcp playwright 源浏览器工具集（issue #36） ----
@@ -138,7 +138,7 @@ class McpSingleEndpointTest {
 		client = connect("/xyz-hub/mcp?includes=[playwright*]");
 		assertThat(toolNames()).contains("playwright_web_session", "playwright_browser_navigate",
 				"playwright_browser_snapshot", "playwright_browser_take_screenshot");
-		assertThat(toolNames()).doesNotContain("bocha_web_search", "utils_currentDateTime");
+		assertThat(toolNames()).doesNotContain("bocha_search", "utils_currentDateTime");
 	}
 
 	// ---- 验收 2：无参数 = 全量工具（向后兼容） ----
@@ -147,7 +147,7 @@ class McpSingleEndpointTest {
 	void noParamsListsAllTools() {
 		client = connect("/xyz-hub/mcp");
 		List<String> names = toolNames();
-		assertThat(names).contains("bocha_web_search", "bocha_ai_search", "utils_currentDateTime");
+		assertThat(names).contains("bocha_search", "utils_currentDateTime");
 		// 全量 = 全部已注册源工具的超集，至少包含首迁移的两个原生源与 HostMcp playwright 源
 		assertThat(names.size()).isGreaterThanOrEqualTo(3);
 	}
@@ -163,42 +163,42 @@ class McpSingleEndpointTest {
 
 	@Test
 	void includesExactToolNameSelectsSingleTool() {
-		client = connect("/xyz-hub/mcp?includes=[bocha_web_search]");
-		assertThat(toolNames()).containsExactly("bocha_web_search");
+		client = connect("/xyz-hub/mcp?includes=[bocha_search]");
+		assertThat(toolNames()).containsExactly("bocha_search");
 	}
 
 	@Test
 	void includesListCombinesSourceAndTool() {
-		client = connect("/xyz-hub/mcp?includes=[bocha_web_search,utils*]");
-		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_web_search", "utils_currentDateTime");
+		client = connect("/xyz-hub/mcp?includes=[bocha_search,utils*]");
+		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_search", "utils_currentDateTime");
 	}
 
 	@Test
 	void excludesSubtractsFromFullSet() {
-		client = connect("/xyz-hub/mcp?excludes=[bocha_ai_search]");
+		client = connect("/xyz-hub/mcp?excludes=[bocha_search]");
 		List<String> names = toolNames();
-		assertThat(names).contains("bocha_web_search", "utils_currentDateTime").doesNotContain("bocha_ai_search");
+		assertThat(names).contains("utils_currentDateTime").doesNotContain("bocha_search");
 	}
 
 	@Test
 	void excludesSourceWildcardRemovesAllSourceTools() {
 		client = connect("/xyz-hub/mcp?excludes=[bocha*]");
 		List<String> names = toolNames();
-		assertThat(names).doesNotContain("bocha_web_search", "bocha_ai_search");
+		assertThat(names).doesNotContain("bocha_search");
 		assertThat(names).contains("utils_currentDateTime");
 	}
 
 	@Test
 	void includeThenExcludeExclusionWins() {
-		client = connect("/xyz-hub/mcp?includes=[bocha*]&excludes=[bocha_web_search]");
-		assertThat(toolNames()).containsExactly("bocha_ai_search");
+		client = connect("/xyz-hub/mcp?includes=[bocha*]&excludes=[bocha_search]");
+		assertThat(toolNames()).isEmpty();
 	}
 
 	@Test
 	void unknownItemIsSilentlyIgnored() {
 		// 未知项静默忽略（+日志 warn），连接不失败，剩余项照常生效
 		client = connect("/xyz-hub/mcp?includes=[no_such_source,no_such_tool,bocha*]");
-		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_web_search", "bocha_ai_search");
+		assertThat(toolNames()).containsExactly("bocha_search");
 	}
 
 	// ---- 验收 4：/xyz-hub/sse 与 /xyz-hub/mcp 过滤行为一致 ----
@@ -206,14 +206,14 @@ class McpSingleEndpointTest {
 	@Test
 	void sseEndpointFiltersConsistentlyWithMcp() {
 		client = connectSse("/xyz-hub/sse?includes=[bocha*]");
-		assertThat(toolNames()).containsExactlyInAnyOrder("bocha_web_search", "bocha_ai_search");
+		assertThat(toolNames()).containsExactly("bocha_search");
 	}
 
 	@Test
 	void sseEndpointNoParamsListsAllTools() {
 		client = connectSse("/xyz-hub/sse");
 		List<String> names = toolNames();
-		assertThat(names).contains("bocha_web_search", "bocha_ai_search", "utils_currentDateTime");
+		assertThat(names).contains("bocha_search", "utils_currentDateTime");
 	}
 
 	// ---- 调用路径：可见工具可调，被过滤工具对 agent 不存在（call 被拒） ----
@@ -221,8 +221,8 @@ class McpSingleEndpointTest {
 	@Test
 	void visibleToolCanBeCalled() {
 		client = connect("/xyz-hub/mcp?includes=[bocha*]");
-		var result = client.callTool(McpSchema.CallToolRequest.builder("bocha_web_search")
-			.arguments(Map.of("query", "spring boot"))
+		var result = client.callTool(McpSchema.CallToolRequest.builder("bocha_search")
+			.arguments(Map.of("type", "web", "query", "spring boot"))
 			.build());
 		assertThat(result.isError()).isFalse();
 		var text = (McpSchema.TextContent) result.content().get(0);

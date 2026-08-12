@@ -39,7 +39,9 @@ class McpBochaEndpointTest {
 	private static final String AI_SEARCH_RESPONSE = """
 		{"code":200,"log_id":"test-log","messages":[
 			{"role":"assistant","type":"answer","content_type":"text","content":"Spring Boot 是流行的 Java 微服务框架。"},
-			{"role":"assistant","type":"source","content_type":"webpage","content":"{\\"webSearchUrl\\":\\"https://bochaai.com/search?q=spring boot\\",\\"value\\":[{\\"name\\":\\"Spring Boot 官网\\",\\"url\\":\\"https://spring.io/projects/spring-boot\\",\\"snippet\\":\\"快速构建生产级 Spring 应用。\\",\\"siteName\\":\\"Spring\\"}]}"}
+			{"role":"assistant","type":"source","content_type":"webpage","content":"{\\"webSearchUrl\\":\\"https://bochaai.com/search?q=spring boot\\",\\"value\\":[{\\"name\\":\\"Spring Boot 官网\\",\\"url\\":\\"https://spring.io/projects/spring-boot\\",\\"snippet\\":\\"快速构建生产级 Spring 应用。\\",\\"siteName\\":\\"Spring\\"}]}"},
+			{"role":"assistant","type":"source","content_type":"weather_china","content":"[{\\"name\\":\\"北京\\",\\"url\\":\\"https://www.weatherol.com.cn\\",\\"modelCard\\":{\\"day\\":[{\\"date\\":\\"2026-08-11\\",\\"description_day\\":\\"雷阵雨\\"}]}}]"},
+			{"role":"assistant","type":"follow_up","content_type":"text","content":"[\\"北京未来一周天气趋势？\\"]"}
 		]}
 		""".strip();
 
@@ -101,29 +103,42 @@ class McpBochaEndpointTest {
 	}
 
 	@Test
-	void listToolsExposesBochaSearchTools() {
+	void listToolsExposesBochaSearch() {
 		client = connect();
 		var tools = client.listTools().tools();
-		assertThat(tools).extracting(McpSchema.Tool::name).contains("bocha_web_search", "bocha_ai_search");
+		// ADR-0015：原 web_search/ai_search 合成为单 search 工具（暴露名 bocha_search）
+		assertThat(tools).extracting(McpSchema.Tool::name).contains("bocha_search");
 		assertThat(tools).allSatisfy(tool -> assertThat(tool.description()).isNotBlank());
 	}
 
 	@Test
-	void callWebSearchReturnsResults() {
+	void callSearchWebReturnsResults() {
 		client = connect();
-		String text = callText("bocha_web_search", Map.of("query", "spring boot"));
+		String text = callText("bocha_search", Map.of("type", "web", "query", "spring boot"));
 		assertThat(text).contains("Spring Boot 官网");
 		assertThat(text).contains("spring.io/projects/spring-boot");
 		assertThat(text).contains("快速构建生产级");
 	}
 
 	@Test
-	void callAiSearchReturnsSummary() {
+	void callSearchAiReturnsSummary() {
 		client = connect();
-		String text = callText("bocha_ai_search", Map.of("query", "spring boot", "count", 5));
+		// type 缺省默认 ai
+		String text = callText("bocha_search", Map.of("query", "spring boot", "count", 5));
 		assertThat(text).contains("AI 总结");
 		assertThat(text).contains("流行的 Java 微服务框架");
 		assertThat(text).contains("Spring Boot 官网");
+	}
+
+	@Test
+	void callSearchAiReturnsFollowUpAndModelCard() {
+		// 主缝覆盖模态卡/追问问题从 HTTP 到返回的完整链（ADR-0015 Testing Decision）
+		client = connect();
+		String text = callText("bocha_search", Map.of("query", "spring boot"));
+		assertThat(text).contains("追问问题");
+		assertThat(text).contains("北京未来一周天气趋势");
+		assertThat(text).contains("模态卡[weather_china]");
+		assertThat(text).contains("modelCard");
 	}
 
 }

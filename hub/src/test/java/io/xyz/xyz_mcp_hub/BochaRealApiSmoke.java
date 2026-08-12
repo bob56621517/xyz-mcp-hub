@@ -31,12 +31,12 @@ public class BochaRealApiSmoke {
 			.build();
 		BochaTools tools = new BochaTools(new BochaClient(client), key);
 
-		System.out.println("[2/3] 调用 web_search(\"Spring Boot\", 3, \"noLimit\")");
-		String web = tools.webSearch("Spring Boot", 3, "noLimit");
+		System.out.println("[2/3] 调用 search(type=web, \"Spring Boot\", 3, \"noLimit\")");
+		String web = tools.search("web", "Spring Boot", 3, "noLimit", null, null);
 		System.out.println("      结果：\n" + truncate(web, 500));
 
-		System.out.println("[3/3] 调用 ai_search(\"Spring Boot\", 3, \"noLimit\")");
-		String ai = tools.aiSearch("Spring Boot", 3, "noLimit");
+		System.out.println("[3/3] 调用 search(type=ai(默认), \"Spring Boot\", 3, \"noLimit\")");
+		String ai = tools.search(null, "Spring Boot", 3, "noLimit", null, null);
 		System.out.println("      结果：\n" + truncate(ai, 500));
 
 		boolean ok = !web.isBlank() && !ai.isBlank()

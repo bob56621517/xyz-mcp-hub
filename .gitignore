@@ -51,3 +51,7 @@ application-local.yml
 
 ### mvn 生成的构建产物（#31）###
 manifests/mcp-images.yaml
+
+### Claude Code / Playwright 环境产物 ###
+.claude/worktrees/
+.playwright-mcp/
