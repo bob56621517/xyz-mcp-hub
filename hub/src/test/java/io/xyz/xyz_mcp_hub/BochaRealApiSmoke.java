@@ -7,18 +7,18 @@ import org.springframework.web.client.RestClient;
 /**
  * Bocha 真实 API 冒烟模板（手工运行，非自动测试）。
  *
- * <p>作为各服务 main 冒烟的模板示例：环境变量读凭据、步骤化 stdout 输出、
+ * <p>作为各服务 main 冒烟的模板示例：凭据读取、步骤化 stdout 输出、
  * 结果合理判定。详见 {@code docs/testing/mcp-service-test-guide.md}。</p>
  *
  * <p>运行：{@code ./mvnw exec:java -Dexec.mainClass=io.xyz.xyz_mcp_hub.BochaRealApiSmoke -Dexec.classpathScope=test -Dvaadin.skip=true}</p>
  *
  * @requires-web 需真实外部网络（api.bochaai.com）
- * @requires-token BOCHA_API_KEY 从环境变量读取；未设置则退出
+ * @requires-token BOCHA_API_KEY 凭据来源与 Spring 运行时一致（env 优先，application-local.yml 兜底，见 {@link SmokeCredentials}）；未设置则退出
  */
 public class BochaRealApiSmoke {
 
 	public static void main(String[] args) {
-		String key = System.getenv("BOCHA_API_KEY");
+		String key = SmokeCredentials.get("BOCHA_API_KEY");
 		System.out.println("[1/3] 依赖检查：BOCHA_API_KEY "
 				+ (key == null || key.isBlank() ? "未设置，退出" : "已设置"));
 		if (key == null || key.isBlank()) {

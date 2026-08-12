@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 的连通与工具视图由 {@code McpSingleEndpointTest} 覆盖（不对 {@code /xyz-hub/sse} 发 GET——SSE
  * 建连 GET 会打开持续事件流阻塞客户端读取，故本类只做旧路径 404 与目录存活性断言）。
  * {@code @DirtiesContext(BEFORE_CLASS)}：本类无自定义动态属性会复用共享 context，隔离共享单端点传输
- * 被套件中其他 context 置为 isClosing 的影响（同 {@code McpUtilsEndpointTest} / {@code McpPlaywrightEndpointTest}）。</p>
+ * 被套件中其他 context 置为 isClosing 的影响（同 {@code McpUtilsEndpointTest}）。</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)

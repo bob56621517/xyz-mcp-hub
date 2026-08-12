@@ -2,9 +2,11 @@ package io.xyz.xyz_mcp_hub.playwright;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import io.xyz.xyz_mcp_hub.playwright.internal.SharedChromium;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,10 +21,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class WebSessionRegistry implements DisposableBean {
 
-	private final SharedChromium sharedChromium;
 	private final int maxSessions;
 	private final long ttlNanos;
 	private final long scanIntervalMillis;
+	private final Supplier<BrowserSessionHandle> handleFactory;
 
 	private final ConcurrentHashMap<String, BrowserSessionHandle> sessions = new ConcurrentHashMap<>();
 	private final AtomicLong idSeq = new AtomicLong();
@@ -30,8 +32,18 @@ public class WebSessionRegistry implements DisposableBean {
 	private final Thread scanner;
 	private volatile boolean running = true;
 
+	@Autowired
 	public WebSessionRegistry(SharedChromium sharedChromium, PlaywrightProperties properties) {
-		this.sharedChromium = sharedChromium;
+		this(properties, () -> new BrowserSessionHandle(
+				sharedChromium.cdpEndpoint(), sharedChromium.navigationTimeoutSeconds()));
+	}
+
+	/**
+	 * 测试注入 seam：给定 handle 工厂创建会话（fake/mock handle），不触 chromium、不启真实浏览器
+	 * 进程——能力层单测（{@code WebSessionRegistryTest}）注入 mock 句柄验证上限/TTL 回收语义。
+	 */
+	WebSessionRegistry(PlaywrightProperties properties, Supplier<BrowserSessionHandle> handleFactory) {
+		this.handleFactory = handleFactory;
 		PlaywrightProperties.Session sessionProps = properties.getSession();
 		this.maxSessions = sessionProps.getMax();
 		this.ttlNanos = sessionProps.getTtlSeconds() * 1_000_000_000L;
@@ -66,8 +78,7 @@ public class WebSessionRegistry implements DisposableBean {
 			throw new IllegalArgumentException("浏览器会话数已达上限 " + maxSessions
 				+ "，请先 web_session(action=close) 关闭不再使用的会话");
 		}
-		BrowserSessionHandle handle = new BrowserSessionHandle(
-				sharedChromium.cdpEndpoint(), sharedChromium.navigationTimeoutSeconds());
+		BrowserSessionHandle handle = handleFactory.get();
 		String id = "ws-" + idSeq.incrementAndGet();
 		sessions.put(id, handle);
 		return id;

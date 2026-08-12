@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>{@code @DirtiesContext(BEFORE_CLASS)}：本类无自定义动态属性，会复用共享 Spring context；
  * 完整套件中其他类创建第二个 context（Vaadin/Atmosphere 全局状态）会把共享 context 的单端点传输置为
- * {@code isClosing}，导致连 {@code /xyz-hub/mcp} 收到 503（同 {@code McpPlaywrightEndpointTest} 手法）。</p>
+ * {@code isClosing}，导致连 {@code /xyz-hub/mcp} 收到 503。</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)

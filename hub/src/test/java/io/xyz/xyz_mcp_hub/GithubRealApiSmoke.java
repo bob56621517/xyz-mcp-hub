@@ -19,7 +19,7 @@ import io.xyz.xyz_mcp_hub.mcp.internal.proxy.ProxySourceConfig;
  * <p>运行：{@code ./mvnw exec:java -Dexec.mainClass=io.xyz.xyz_mcp_hub.GithubRealApiSmoke -Dexec.classpathScope=test -Dvaadin.skip=true}</p>
  *
  * @requires-web 需真实外部网络（api.githubcopilot.com）
- * @requires-token GITHUB_AUTH_HEADER 完整认证 header（如 "Authorization: Bearer <token>"）从环境变量读取；未设置则退出
+ * @requires-token GITHUB_AUTH_HEADER 完整认证 header（如 "Authorization: Bearer <token>"）凭据来源与 Spring 运行时一致（env 优先，application-local.yml 兜底，见 {@link SmokeCredentials}）；未设置则退出
  */
 public class GithubRealApiSmoke {
 
@@ -27,7 +27,7 @@ public class GithubRealApiSmoke {
 
 	public static void main(String[] args) {
 		// #52 配置驱动：与 mcp.proxies auth-header 同一语义（完整 header 行，见 GITHUB_AUTH_HEADER）
-		String authHeader = System.getenv("GITHUB_AUTH_HEADER");
+		String authHeader = SmokeCredentials.get("GITHUB_AUTH_HEADER");
 		System.out.println("[1/2] 依赖检查：GITHUB_AUTH_HEADER "
 				+ (authHeader == null || authHeader.isBlank() ? "未设置，退出" : "已设置"));
 		if (authHeader == null || authHeader.isBlank()) {

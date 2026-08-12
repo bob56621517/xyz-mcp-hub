@@ -15,9 +15,9 @@
 
 顶级工具模块（bocha/playwright/jina/docker）是纯能力 API，能力测试用 **plain JUnit 直接 new 调用**（不经 Spring/MCP），可注入 mock/fake 或内嵌模拟上游，不触网、不依赖容器：
 
-- 能力类：`BochaClient`/`JinaReader` 等，构造注入 `RestClient.Builder`/fake `ContainerManager` + 内嵌 `HttpServer` 上游。
+- 能力类：`BochaClient`/`JinaReader` 等，构造注入 `RestClient.Builder`/fake `ContainerManager` + 内嵌 `HttpServer` 上游；`WebSessionRegistry`（playwright 会话租约）经包私有 handle 工厂 seam 注入 mock 句柄测上限/TTL 回收（不触 chromium）。
 - 工具类即源：`BochaTools`/`PlaywrightTools`/`JinaTools` 实现 `McpEndpointProvider`，可 `new` 直接调用 `@Tool` 方法测试（mock 能力类验证元数据与路由）。
-- 示例：`BochaClientTest`（MockRestServiceServer）、`JinaReaderTest`（file:// 本地解析 + 内嵌上游）、`BochaToolsTest`/`JinaToolsTest`（源元数据 + 路由）。
+- 示例：`BochaClientTest`（MockRestServiceServer）、`JinaReaderTest`（file:// 本地解析 + 内嵌上游）、`WebSessionRegistryTest`（会话租约：上限/close/TTL 回收）、`BochaToolsTest`/`JinaToolsTest`/`PlaywrightToolsTest`（源元数据 + 路由，playwright mock 注册表与会话句柄）。
 
 ### 转发服务（ProxyMcp）— mock 联通 + 手工具体测试
 
@@ -30,7 +30,7 @@
 ## main 冒烟函数约定
 
 - **位置**：对应服务的单元测试类内（与 mock 测试同处），或独立展示模板（见 `BochaRealApiSmoke`）。
-- **凭据**：从环境变量读取（如 `BOCHA_API_KEY`），未设置时打印提示并退出。
+- **凭据**：经 `SmokeCredentials.get(...)` 读取（**env 优先，application-local.yml 兜底**，与 Spring 运行时占位符 `${KEY:}` 一致；如 `BOCHA_API_KEY`/`GITHUB_AUTH_HEADER`），未设置时打印提示并退出。
 - **输出**：步骤化标准输出（`[1/N] ...`），每步一行，异常打印失败步；便于贴入 issue 作为验收证据。
 - **模板**：`BochaRealApiSmoke`（位于 `src/test/java/io/xyz/xyz_mcp_hub/BochaRealApiSmoke.java`）。
 
