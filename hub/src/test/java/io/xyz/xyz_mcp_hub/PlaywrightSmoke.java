@@ -82,6 +82,11 @@ public class PlaywrightSmoke {
 			boolean ok = count != null && count.contains("count: 1");
 			System.out.println("结论：" + (ok ? "通过（结果合理）" : "未通过（见上方输出）"));
 		}
+		catch (RuntimeException e) {
+			// 测试指南「main 冒烟函数约定」：异常打印失败步（上一条 [N/M] 行即失败步），供贴 issue 留证
+			System.out.println("      步骤执行失败：" + e.getMessage());
+			System.out.println("结论：未通过（见上方输出）");
+		}
 		finally {
 			if (registry != null) {
 				registry.destroy();

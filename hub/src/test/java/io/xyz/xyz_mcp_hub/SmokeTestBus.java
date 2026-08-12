@@ -11,7 +11,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import io.xyz.xyz_mcp_hub.docker.DockerContainerSmoke;
 import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.JinaSmoke;
+import io.xyz.xyz_mcp_hub.mcp.internal.containermcp.MarkitdownContainerMcpSmoke;
 import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
 
 /**
@@ -28,7 +30,7 @@ import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
  * @requires-token BOCHA_API_KEY bocha 冒烟；未设置则跳过
  * @requires-token GITHUB_AUTH_HEADER github 冒烟（完整认证 header）；未设置则跳过
  * @requires-service chromium playwright 冒烟；未安装则跳过
- * @requires-docker jina 冒烟；需本机 docker daemon + jina 镜像（ghcr.io/jina-ai/reader）
+ * @requires-docker jina/docker/markitdown-container 冒烟；需本机 docker daemon（jina 镜像 GHCR pull，markitdown 需 {@code ./mvnw install} 构建 + {@code verify} 生成清单）
  */
 public class SmokeTestBus {
 
@@ -60,6 +62,16 @@ public class SmokeTestBus {
 				new SmokeTask("jina", "jina reader 容器代抓（HTML/PDF→markdown、SSRF 拦截、闲置回收，@requires-docker）",
 						() -> callMain(() -> {
 							JinaSmoke.main(new String[0]);
+							return null;
+						})),
+				new SmokeTask("docker", "docker 容器生命周期（拉起/健康检查/回收/销毁，需 docker + markitdown 镜像/清单）",
+						() -> callMain(() -> {
+							DockerContainerSmoke.main(new String[0]);
+							return null;
+						})),
+				new SmokeTask("markitdown-container", "markitdown 容器 MCP 转发（需 docker + 镜像/清单）",
+						() -> callMain(() -> {
+							MarkitdownContainerMcpSmoke.main(new String[0]);
 							return null;
 						})));
 
@@ -116,14 +128,20 @@ public class SmokeTestBus {
 		}
 		String out = buffer.toString(StandardCharsets.UTF_8);
 		System.out.println(out.stripTrailing());
-		if (out.contains("未设置，退出")) {
-			return SmokeResult.skip("依赖未设置");
-		}
 		if (out.contains("结论：通过")) {
 			return SmokeResult.pass("冒烟通过");
 		}
+		if (out.contains("未设置，退出")) {
+			return SmokeResult.skip("依赖未设置");
+		}
 		if (out.contains("Executable doesn't exist")) {
 			return SmokeResult.skip("需先安装 chromium");
+		}
+		if (out.contains("docker 不可用")) {
+			return SmokeResult.skip("需 docker daemon");
+		}
+		if (out.contains("镜像缺失") || out.contains("清单缺少")) {
+			return SmokeResult.skip("sidecar 镜像/清单未就绪（先 ./mvnw install / verify）");
 		}
 		return SmokeResult.fail("冒烟未通过（见上方输出）");
 	}
