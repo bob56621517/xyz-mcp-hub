@@ -27,8 +27,8 @@ import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
  * <p>运行：{@code ./mvnw exec:java -Dexec.mainClass=io.xyz.xyz_mcp_hub.SmokeTestBus -Dexec.classpathScope=test -Dvaadin.skip=true}</p>
  *
  * @requires-web utils 外各任务需真实外部网络（api.bochaai.com / api.githubcopilot.com / mcp.context7.com / mcp.grep.app / wd-mcp.wmcloud.org）
- * @requires-token BOCHA_API_KEY bocha 冒烟；未设置则跳过
- * @requires-token GITHUB_AUTH_HEADER github 冒烟（完整认证 header）；未设置则跳过
+ * @requires-token BOCHA_API_KEY bocha 冒烟；未设置则跳过（凭据来源：env 优先、application-local.yml 兜底，与 Spring 运行时一致）
+ * @requires-token GITHUB_AUTH_HEADER github 冒烟（完整认证 header）；未设置则跳过（凭据来源同上）
  * @requires-service chromium playwright 冒烟；未安装则跳过
  * @requires-docker jina/docker/markitdown-container 冒烟；需本机 docker daemon（jina 镜像 GHCR pull，markitdown 需 {@code ./mvnw install} 构建 + {@code verify} 生成清单）
  */

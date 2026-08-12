@@ -30,7 +30,7 @@
 ## main 冒烟函数约定
 
 - **位置**：对应服务的单元测试类内（与 mock 测试同处），或独立展示模板（见 `BochaRealApiSmoke`）。
-- **凭据**：从环境变量读取（如 `BOCHA_API_KEY`），未设置时打印提示并退出。
+- **凭据**：经 `SmokeCredentials.get(...)` 读取（**env 优先，application-local.yml 兜底**，与 Spring 运行时占位符 `${KEY:}` 一致；如 `BOCHA_API_KEY`/`GITHUB_AUTH_HEADER`），未设置时打印提示并退出。
 - **输出**：步骤化标准输出（`[1/N] ...`），每步一行，异常打印失败步；便于贴入 issue 作为验收证据。
 - **模板**：`BochaRealApiSmoke`（位于 `src/test/java/io/xyz/xyz_mcp_hub/BochaRealApiSmoke.java`）。
 
