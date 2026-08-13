@@ -24,7 +24,8 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public class BochaClient {
 
-	private static final int DEFAULT_COUNT = 10;
+	/** 能力层兜底 count（忠于官网的缺省值）；AI 习惯默认 20 由工具层 {@code BochaTools.DEFAULT_COUNT} 决定（ADR-0015）。 */
+	private static final int FALLBACK_COUNT = 10;
 	private static final int MAX_COUNT = 50;
 	private static final String DEFAULT_FRESHNESS = "noLimit";
 	private static final List<String> FRESHNESS_VALUES = List.of(
@@ -61,7 +62,7 @@ public class BochaClient {
 	private static Map<String, Object> baseBody(String query, Integer count, String freshness) {
 		Map<String, Object> body = new LinkedHashMap<>();
 		body.put("query", query);
-		body.put("count", count == null ? DEFAULT_COUNT : clamp(count));
+		body.put("count", count == null ? FALLBACK_COUNT : clamp(count));
 		body.put("freshness", (freshness != null && !freshness.isBlank() && isValidFreshness(freshness))
 				? freshness : DEFAULT_FRESHNESS);
 		return body;
@@ -140,8 +141,9 @@ public class BochaClient {
 	private void appendAiSearch(StringBuilder sb, JsonNode root) {
 		appendAnswer(sb, root);
 		appendFollowUp(sb, root);
-		appendModelCards(sb, root);
+		// ADR-0015 顺序：总结答案 + 追问问题 + 参考来源（网页）+ 模态卡
 		appendWebpageSources(sb, root);
+		appendModelCards(sb, root);
 	}
 
 	private void appendAnswer(StringBuilder sb, JsonNode root) {

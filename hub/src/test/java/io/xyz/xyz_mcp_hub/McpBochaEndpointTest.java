@@ -11,6 +11,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,8 @@ class McpBochaEndpointTest {
 		""".strip();
 
 	private static HttpServer mockApi;
+	/** 各端点最近一次请求体（ADR-0015 主缝覆盖「默认值生效」：断言透传参数，如 count 默认 20）。 */
+	private static final Map<String, String> lastRequests = new ConcurrentHashMap<>();
 
 	@LocalServerPort
 	private int port;
@@ -55,12 +58,22 @@ class McpBochaEndpointTest {
 	@DynamicPropertySource
 	static void bochaBaseUrl(DynamicPropertyRegistry registry) throws IOException {
 		mockApi = HttpServer.create(new InetSocketAddress(0), 0);
-		mockApi.createContext("/v1/web-search", exchange -> respond(exchange, WEB_SEARCH_RESPONSE));
-		mockApi.createContext("/v1/ai-search", exchange -> respond(exchange, AI_SEARCH_RESPONSE));
+		mockApi.createContext("/v1/web-search", exchange -> {
+			lastRequests.put("web", readBody(exchange));
+			respond(exchange, WEB_SEARCH_RESPONSE);
+		});
+		mockApi.createContext("/v1/ai-search", exchange -> {
+			lastRequests.put("ai", readBody(exchange));
+			respond(exchange, AI_SEARCH_RESPONSE);
+		});
 		mockApi.start();
 		registry.add("bocha.base-url", () -> "http://localhost:" + mockApi.getAddress().getPort());
 		// 端点按 api-key 非空才注册（ADR-0005），测试注入假 key 使 bocha 端点生效
 		registry.add("bocha.api-key", () -> "test-key");
+	}
+
+	private static String readBody(HttpExchange exchange) throws IOException {
+		return new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
 	}
 
 	private static void respond(HttpExchange exchange, String json) throws IOException {
@@ -113,21 +126,36 @@ class McpBochaEndpointTest {
 
 	@Test
 	void callSearchWebReturnsResults() {
+		lastRequests.clear();
 		client = connect();
 		String text = callText("bocha_search", Map.of("type", "web", "query", "spring boot"));
 		assertThat(text).contains("Spring Boot 官网");
 		assertThat(text).contains("spring.io/projects/spring-boot");
 		assertThat(text).contains("快速构建生产级");
+		// 默认值生效：web 路径 count 默认 20、summary 恒 true（ADR-0015）
+		assertThat(lastRequests.get("web")).contains("\"count\":20").contains("\"summary\":true");
 	}
 
 	@Test
 	void callSearchAiReturnsSummary() {
+		lastRequests.clear();
 		client = connect();
 		// type 缺省默认 ai
 		String text = callText("bocha_search", Map.of("query", "spring boot", "count", 5));
 		assertThat(text).contains("AI 总结");
 		assertThat(text).contains("流行的 Java 微服务框架");
 		assertThat(text).contains("Spring Boot 官网");
+		// count 显式透传（5）
+		assertThat(lastRequests.get("ai")).contains("\"count\":5");
+	}
+
+	@Test
+	void callSearchDefaultsCountTo20() {
+		// 主缝覆盖「默认值生效」：ai 路径 type/count 均缺省时 HTTP 收到 count=20（ADR-0015）
+		lastRequests.clear();
+		client = connect();
+		callText("bocha_search", Map.of("query", "spring boot"));
+		assertThat(lastRequests.get("ai")).contains("\"count\":20");
 	}
 
 	@Test
