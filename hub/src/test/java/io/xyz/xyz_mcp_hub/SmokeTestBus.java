@@ -28,7 +28,7 @@ import io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.utils.UtilsTools;
  * @requires-token BOCHA_API_KEY bocha 冒烟；未设置则跳过（凭据来源：env 优先、application-local.yml 兜底，与 Spring 运行时一致）
  * @requires-token GITHUB_AUTH_HEADER github 冒烟（完整认证 header）；未设置则跳过（凭据来源同上）
  * @requires-service chromium playwright 冒烟；未安装则跳过
- * @requires-engine jina 冒烟需先 {@code docker compose up -d}（compose.yml 起 jina，暴露 127.0.0.1:18081）
+ * @requires-docker jina 冒烟需先 {@code docker compose up -d}（compose.yml 起 jina，暴露 127.0.0.1:18081）
  */
 public class SmokeTestBus {
 

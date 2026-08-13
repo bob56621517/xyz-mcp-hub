@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.io.TempDir;
 class JinaReaderTest {
 
 	private static final AtomicReference<String> LAST_CONTENT_TYPE = new AtomicReference<>();
+	private static final AtomicReference<String> LAST_RETAIN_IMAGES = new AtomicReference<>();
 	private static final AtomicReference<String> LAST_BODY = new AtomicReference<>();
 
 	private static HttpServer upstream;
@@ -42,9 +44,10 @@ class JinaReaderTest {
 		upstreamPort = upstream.getAddress().getPort();
 	}
 
-	/** 内嵌模拟 jina reader 上游：记录 Content-Type 与请求体，返回固定 markdown。 */
+	/** 内嵌模拟 jina reader 上游：记录 Content-Type / X-Retain-Images 与请求体，返回固定 markdown。 */
 	private static void respondMarkdown(HttpExchange exchange) throws IOException {
 		LAST_CONTENT_TYPE.set(exchange.getRequestHeaders().getFirst("Content-Type"));
+		LAST_RETAIN_IMAGES.set(exchange.getRequestHeaders().getFirst("X-Retain-Images"));
 		LAST_BODY.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
 		byte[] bytes = "# mock markdown\n\njina 返回正文".getBytes(StandardCharsets.UTF_8);
 		exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
@@ -64,6 +67,7 @@ class JinaReaderTest {
 	@BeforeEach
 	void reset() {
 		LAST_CONTENT_TYPE.set(null);
+		LAST_RETAIN_IMAGES.set(null);
 		LAST_BODY.set(null);
 	}
 
@@ -79,6 +83,58 @@ class JinaReaderTest {
 		String result = reader().readUrl("https://example.com/page");
 		assertThat(result).contains("mock markdown");
 		assertThat(LAST_BODY.get()).contains("https://example.com/page");
+		// ADR-0016 决策 7：x-retain-images: all 保留图 URL（hub 侧 vision 工具需要）
+		assertThat(LAST_RETAIN_IMAGES.get()).isEqualTo("all");
+	}
+
+	// ---- 验收：非 2xx / 连接层失败边界 ----
+
+	@Test
+	void non2xxResponseThrowsWithBody() throws IOException {
+		HttpServer error = HttpServer.create(new InetSocketAddress(0), 0);
+		error.createContext("/", exchange -> {
+			byte[] body = "jina 内部错误".getBytes(StandardCharsets.UTF_8);
+			exchange.sendResponseHeaders(500, body.length);
+			try (var out = exchange.getResponseBody()) {
+				out.write(body);
+			}
+		});
+		error.start();
+		try {
+			JinaReader reader = new JinaReader("http://localhost:" + error.getAddress().getPort());
+			assertThatThrownBy(() -> reader.readUrl("https://example.com"))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("HTTP 500")
+				.hasMessageContaining("jina 内部错误");
+		}
+		finally {
+			error.stop(0);
+		}
+	}
+
+	@Test
+	void connectionFailureRetriesThenSucceeds() throws IOException {
+		AtomicInteger calls = new AtomicInteger();
+		HttpServer flaky = HttpServer.create(new InetSocketAddress(0), 0);
+		flaky.createContext("/", exchange -> {
+			if (calls.incrementAndGet() == 1) {
+				// 首个请求直接断连（无响应 → 客户端 IOException，非 ConnectException → 触发重试）
+				exchange.close();
+			}
+			else {
+				respondMarkdown(exchange);
+			}
+		});
+		flaky.start();
+		try {
+			JinaReader reader = new JinaReader("http://localhost:" + flaky.getAddress().getPort());
+			String result = reader.readUrl("https://example.com");
+			assertThat(result).contains("mock markdown");
+			assertThat(calls.get()).isGreaterThan(1);
+		}
+		finally {
+			flaky.stop(0);
+		}
 	}
 
 	// ---- 验收：file:// 本地文件上传（multipart） ----

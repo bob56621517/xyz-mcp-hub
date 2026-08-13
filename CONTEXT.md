@@ -14,7 +14,7 @@
 |---|---|---|
 | MCP Hub | MCP Hub | 本项目的本体。对外暴露统一 MCP 入口，内部聚合并管理各类 MCP 服务 |
 | 源 | Source | 目录里一个可被 `includes`/`excludes` 引用的工具组。**两个正交状态**：已注册（声明存在——本地工具类 / 配置 proxy / 端点配置，由代码或配置固定）与 启用（`isEnabled()` 门控：key/token/端点可用才 true）。目录列出所有已注册源并标 `enabled`；未启用源工具为空 |
-| 工具类即源 | Tools as source | #53：本地工具类（`BochaTools`/`PlaywrightTools`/`JinaTools`）**本身实现** `McpEndpointProvider`——`@Tool` 方法 + 源元数据（name/scope/type/protocol/enabled）合一，`new` 即可直接调用测试；纯能力在顶级模块（`BochaClient`/`WebSessionRegistry`/`JinaReader`），MCP 层不再有 `XxxMcpProvider` 包装类 |
+| 工具类即源 | Tools as source | #53：本地工具类（`BochaTools`/`PlaywrightTools`/`JinaTools`）**本身实现** `McpEndpointProvider`——`@Tool` 方法 + 源元数据（name/scope/type/enabled，ADR-0016 去 protocol）合一，`new` 即可直接调用测试；纯能力在顶级模块（`BochaClient`/`WebSessionRegistry`/`JinaReader`），MCP 层不再有 `XxxMcpProvider` 包装类 |
 | 工具视图 | Tool View | 一次 MCP 连接按 URL 参数解析出的工具子集。**工具永远注册在源里**，`listTools` 返回过滤后的视图给 agent |
 | 目录 | Catalog | `GET /xyz-hub/catalog`，机器可读的「源 + 工具」清单。每个源带 `name` / `type`（native/proxy，host 并入 native 靠 scope 区分）/ `scope` / `enabled` / `tools`。数据两源汇合：本地工具类声明 / 配置 proxy 启动发现（容器静态冒烟已随 markitdown 退役，ADR-0016） |
 | 清单 | Manifest | **已退役（ADR-0016）**。`manifests/mcp-images.yaml` 曾是 ContainerMcp 按需启动容器的运行规范；docker 模块退役后由 compose 承担部署，无此产物 |

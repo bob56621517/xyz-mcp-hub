@@ -14,7 +14,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * bocha 顶级模块的纯能力客户端（与 docker/playwright 同级，#53）：封装博查 Web Search 与 AI Search
+ * bocha 顶级模块的纯能力客户端（与 playwright/jina 同级，#53）：封装博查 Web Search 与 AI Search
  * HTTP API，**返回结构化 VO、不格式化文本**（#63 能力层忠于官网：参数透传、默认值由工具层预设）。
  *
  * <p>零 MCP/Spring AI 依赖（仅用 spring-web 的 {@link RestClient} 与 jackson），可独立复用与测试。

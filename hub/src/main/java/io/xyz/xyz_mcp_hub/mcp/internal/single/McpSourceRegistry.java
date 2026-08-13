@@ -78,8 +78,8 @@ public class McpSourceRegistry {
 		// #50 注册/启用分离：不再用 isEnabled() 过滤——所有 provider 演化成 source，enabled 由
 		// isEnabled() 决定（未启用源 specs 为空、工具不进全量表；proxy 上游不可达工具空 + 日志）。
 		// #53 工具类即源：工具类本身实现 McpEndpointProvider（BochaTools/PlaywrightTools/JinaTools），
-		// 与 ProxyMcpProvider / ContainerMcp 子类一并作为输入，不再按类型过滤——任何 McpEndpointProvider
-		// bean 都是源。
+		// 与 ProxyMcpProvider 子类一并作为输入，不再按类型过滤——任何 McpEndpointProvider
+		// bean 都是源（容器型已溶解，ADR-0016，无 ContainerMcp）。
 		List<McpSource> sources = providers.stream()
 			.map(this::toSource)
 			.filter(Objects::nonNull)

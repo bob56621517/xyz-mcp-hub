@@ -21,7 +21,7 @@ import org.springframework.ai.tool.ToolCallback;
  * <p>运行：{@code ./mvnw exec:java -pl hub -Dexec.mainClass=io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.jina.JinaSmoke -Dexec.classpathScope=test -Dvaadin.skip=true}
  * （在仓库根目录执行；可用参数 1 覆盖端点 baseUrl）</p>
  *
- * @requires-engine jina 容器需先 {@code docker compose up -d}（compose.yml 起 jina，暴露 127.0.0.1:18081）
+ * @requires-docker jina 引擎容器需先 {@code docker compose up -d}（compose.yml 起 jina，暴露 127.0.0.1:18081）
  * @requires-web 真实公网代抓（example.com）
  */
 public class JinaSmoke {

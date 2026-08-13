@@ -47,6 +47,9 @@ public class JinaRestClient {
 	/** multipart 上传的 file 字段名（jina-reader 约定）。 */
 	private static final String FILE_FIELD = "file";
 
+	/** 输出保留全部图片 URL（ADR-0016 决策 7：hub 侧 vision 工具需要图 URL，jina 不裁剪图）。 */
+	private static final String RETAIN_IMAGES = "X-Retain-Images";
+
 	private final String baseUrl;
 	private final HttpClient http;
 
@@ -68,6 +71,7 @@ public class JinaRestClient {
 		HttpRequest request = HttpRequest.newBuilder(uri)
 			.timeout(REQUEST_TIMEOUT)
 			.header("Content-Type", "application/json")
+			.header(RETAIN_IMAGES, "all")
 			.POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
 			.build();
 		return sendWithRetry(request);
@@ -93,6 +97,7 @@ public class JinaRestClient {
 		HttpRequest request = HttpRequest.newBuilder(uri)
 			.timeout(REQUEST_TIMEOUT)
 			.header("Content-Type", "multipart/form-data; boundary=" + boundary)
+			.header(RETAIN_IMAGES, "all")
 			.POST(HttpRequest.BodyPublishers.concat(
 				HttpRequest.BodyPublishers.ofByteArray(preamble),
 				HttpRequest.BodyPublishers.ofByteArray(content),
