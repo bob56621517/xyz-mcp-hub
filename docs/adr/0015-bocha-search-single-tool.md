@@ -1,4 +1,4 @@
-# ADR-0015: bocha 搜索重构为单 search 工具（两层架构 + base-url 配置化）
+# ADR-0015: bocha 搜索重构为单 search 工具（type 路由，能力层 + AI 习惯层）
 
 ## 日期
 
@@ -32,13 +32,13 @@ bocha 源原来暴露 `web_search` / `ai_search` 两个工具，参数与描述�
 
 ### 两层架构
 
-- **能力层**（`bocha` 顶级模块的 `BochaClient`，#53 顶级模块）：忠于官网，补参数透传（`include`/`exclude`/`answer`/`summary`），解析**模态卡**（`modelCard`）与**追问问题**（`type=follow_up`），保持格式化文本返回。零 MCP/Spring AI 依赖。
-- **工具层**（`BochaTools` 工具类即源，#53）：原两工具**合成为一个 `search` 工具**，暴露名 `bocha_search`（逻辑名 `search`，源注册表加 `{source}_` 前缀）。工具签名：`type / query / count / freshness / include / exclude`。
+- **能力层**（`bocha` 顶级模块的 `BochaClient`，#53 顶级模块）：**纯 API 封装**——返回结构化 VO（`List<WebPage>` / `AiSearchResult`）、参数全透传（含 `summary`/`answer`/`count`/`freshness`，`Boolean` 可空、null 交官网默认）、无默认值、失败抛异常。零 MCP/Spring AI 依赖。
+- **工具层**（`BochaTools` 工具类即源，#53）：原两工具**合成为一个 `search` 工具**，暴露名 `bocha_search`（逻辑名 `search`，源注册表加 `{source}_` 前缀）。工具签名：`type / query / count / freshness / include / exclude`。消化「怎么用 API」的策略（默认值、真值、VO 格式化、异常转友好文本）。
 
 ### type 路由
 
-- `type` 默认 `"ai"` → AI Search（内部 `answer=true`，返回总结答案 + 追问问题 + 参考来源 + 模态卡）。
-- `type="web"` → Web Search（内部 `summary=true` 长摘要，返回网页列表）。
+- `type` 默认 `"ai"` → AI Search（`answer=true`，返回总结答案 + 追问问题 + 参考来源 + 模态卡）。
+- `type="web"` → Web Search（`summary=true` 长摘要，返回网页列表）。
 - 描述文案引导模型：默认走 AI 语义搜索（一次答对）。实测 web/ai 网页来源字段相同，web 的独特价值是 **`exclude` 排除网站**（AI 端 exclude 被忽略）——需要排除特定网站或只要裸网页列表（不需模型总结）时显式 `type="web"`。
 
 ### 参数消化
@@ -58,8 +58,21 @@ bocha 源原来暴露 `web_search` / `ai_search` 两个工具，参数与描述�
 - base-url 由配置键 **`bocha.url`** 决定，默认 **`https://api.bochaai.com`**（现状在用的域名）；官方飞书文档为 `api.bocha.cn`（`/v1/web-search`、`/v1/ai-search` 均实测可达），切换域名只改配置不改代码。
 - 冒烟 `BochaRealApiSmoke` 亦读 `BOCHA_URL` env（缺省同默认值），与 Spring 运行时一致。
 
+### 描述文案
+
+开头「**用户主动加入的用博查搜索引擎的联网 mcp 工具**」；写明 `type=ai` 默认行为（总结/追问/模态卡）与 `type="web"` 分工（排除网站/裸网页列表）；末尾提示「返回的网页来源在回答末尾把 URL 渲染为超链接附上」。参数取值/默认/语法细节放在各 `@ToolParam` 描述（经 `SpringAiSchemaModule` 注入 `inputSchema`），工具描述不重复参数细节。
+
+## 理由与权衡
+
+- **合成单工具 vs 分开两工具**：分开=分工写在工具名里，但现状证明「模型默认走 web」；合成=把「默认走 ai」内置为工具默认行为，一举修复首次命中。代价是深度采集靠描述引导 `type="web"`，通过描述里的决策规则缓解。
+- **`type` 参数 vs `answer` 布尔**：`type="web"/"ai"` 语义直白（端点名），`answer=true/false` 抽象易歧义；且 type 可扩展。
+- **能力层返回 VO vs 文本**：能力层为纯 API 封装返回结构化 VO（`WebPage`/`AiSearchResult`/`ModalCard`），工具层负责 VO → 文本格式化——职责单一（数据 vs 呈现分离），可复用、可测。成本是工具层需做格式化。
+- **能力层默认值归属**：`summary`/`answer` 用 `Boolean` 可空（null 交官网默认）、`count`/`freshness` null 不传——默认值策略（count 20、freshness noLimit、summary/answer 真值）全部上移工具层，能力层不代模型决策。
+- **include/exclude API 优先 vs 本地过滤**：能 API 不造轮子（Web 全支持、AI 支持 include）；AI 的 exclude 直接忽略而非本地兜底——简化，接受「AI 无法排除网站」这一缺口。
+- **`count` 默认 20 而非按 type 分**：统一实现更简，20 对两者均够。
+
 ## 后果
 
-- 好处：模型一次调用即得可用答案（AI 语义搜索）；垂域数据以结构化模态卡返回可直接引用；网站范围 `include`/`exclude` 聚焦可信来源；部署者可配置切换域名。
+- 好处：模型一次调用即得可用答案（AI 语义搜索）；垂域数据以结构化模态卡返回可直接引用；网站范围 `include`/`exclude` 聚焦可信来源；部署者可配置切换域名；能力层纯封装可独立复用测试。
 - 代价：`web_search` / `ai_search` 两个旧工具消失（破坏性变更，连接 URL 中的旧工具名需改为 `bocha_search`）；AI 的 `exclude` 缺口接受（官网无此参数，不做本地兜底）。
 - 不做：模态卡强类型解析（12 种卡各建模型，结构化 JSON 文本返回即可）；本地 include/exclude 过滤；`stream` 流式；`summary` 暴露给模型。

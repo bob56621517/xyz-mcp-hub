@@ -45,6 +45,8 @@
 | `@requires-service 服务名` | 需先启动部署的服务（未来需求） | 探活服务端口 |
 | `@requires-docker` | 需本机 docker daemon 可用（容器冒烟，如 #32） | 检查 `docker info` 通过；缺镜像/清单时按冒烟内提示补齐 |
 
+> **jina 容器冒烟内存要求（#61）**：jina reader 镜像硬编码 `puppeteer.launch(timeout:10s)`，若 Docker Desktop 的 WSL2 内存不足（`.wslconfig` 里 `memory=1GB` 时可用仅 ~512MB），Chrome 启动被拖到 8-13s 撞超时崩溃，容器源不可用。本机跑 jina 冒烟需 WSL2 ≥4GB 内存（`.wslconfig` 设 `memory=4GB`，按需分配不占宿主；改后 `wsl --shutdown` + 重启 Docker Desktop 生效）。
+
 示例：
 
 ```java

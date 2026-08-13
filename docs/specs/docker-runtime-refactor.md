@@ -13,7 +13,7 @@
 **把项目重构为：docker 运行时化 + 单端点 URL 选工具。**
 
 1. **四类 MCP**（ADR-0009）：ProxyMcp（公有云转发）/ NativeMcp（JVM 内薄实现）/ ContainerMcp（本地容器按需拉起）/ HostMcp（同宿主，例外）。确立**薄实现原则**——能力若已有成熟第三方 MCP（或可容器化）就转发/拉容器，绝不 JVM 重造。`fetch` 门面与 `content` 引擎整体退役，网页/PDF 直接用 jina（ContainerMcp rest），文件格式用 markitdown（ContainerMcp mcp）。
-2. **单端点 + URL 参数**（ADR-0011）：`/xyz-hub/mcp`（Streamable HTTP）+ `/xyz-hub/sse`（HTTP+SSE，双传输默认开）。`?includes=[jina,bocha_web_search]&excludes=[]` 在连接/请求级过滤 `listTools` 返回的工具视图。组合源（`mcp.specs` YAML）发布新源入目录。目录 API `GET /xyz-hub/catalog` 先行。
+2. **单端点 + URL 参数**（ADR-0011）：`/xyz-hub/mcp`（Streamable HTTP）+ `/xyz-hub/sse`（HTTP+SSE，双传输默认开）。`?includes=[jina,bocha_search]&excludes=[]` 在连接/请求级过滤 `listTools` 返回的工具视图。组合源（`mcp.specs` YAML）发布新源入目录。目录 API `GET /xyz-hub/catalog` 先行。
 3. **分发与仓库结构**（ADR-0012）：多模块 Maven（Maven = 最终打包入口）；hub 是标准 Spring Boot 应用（不进 docker，`java -jar` 直启）；`mvn install` 只构建 + 安装 sidecar 镜像到本地 docker；`manifests/mcp-images.yaml` = mvn 生成的运行规范（`image`/`protocol`/`port`）；`docker` 顶级模块管容器生命周期（首用拉起 + 闲置回收）。
 4. **SSRF**（ADR-0010）：复用现有 `SsrUrlGuard` 迁至共享 `security` 包；容器代抓前 `check(url)` 静态预检 + 容器网络隔离兜底。
 
@@ -21,7 +21,7 @@
 
 1. 作为 LLM 使用者，我想连接**单个 MCP URL**，用 `?includes=[...]` 只暴露我要的工具，以便节省 Token。
 2. 作为 LLM 使用者，我想无参数连接时拿到全量工具，以便默认连接开箱即用（向后兼容）。
-3. 作为开发者，我想 `includes`/`excludes` 引用**源名**（`jina`，整源）或**工具名**（`bocha_web_search`，精确一个），以便灵活组合。
+3. 作为开发者，我想 `includes`/`excludes` 引用**源名**（`jina`，整源）或**工具名**（`bocha_search`，精确一个），以便灵活组合。
 4. 作为开发者，我想 URL 参数与组合源 YAML **同一套下划线平坦名语法**，以便两处心智一致、零映射。
 5. 作为开发者，我想 `includes` 引用未知源/工具时**静默忽略 + 日志 warn**，以便 client 引用过期源不崩连接。
 6. 作为运维，我想在 `mcp.specs` 定义一个**组合源**（如 `github-readonly` = `{includes:[github], excludes:[...]}`），以便复用常用过滤集。
