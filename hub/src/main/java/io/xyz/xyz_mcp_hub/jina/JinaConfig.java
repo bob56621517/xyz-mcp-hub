@@ -1,26 +1,22 @@
 package io.xyz.xyz_mcp_hub.jina;
 
-import io.xyz.xyz_mcp_hub.docker.ContainerEndpoint;
-import io.xyz.xyz_mcp_hub.docker.ContainerManager;
-import io.xyz.xyz_mcp_hub.docker.ContainerSpecReader;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * jina 顶级模块的 Spring 配置（#53 提升顶级模块）：为纯能力 {@link JinaReader} 装配容器依赖。
+ * jina 顶级模块的 Spring 配置（ADR-0016 配置化）：从 {@code jina.url} 构建纯能力 {@link JinaReader}。
  *
- * <p>{@code docker.enabled=false} 时 {@link ContainerManager} bean 缺失（@ConditionalOnProperty），
- * 经 {@link ObjectProvider} 缺省为 null——JinaReader 构造不依赖容器，{@code isAvailable()} 返回
- * false 使源未启用（目录列出 enabled=false）。</p>
+ * <p>端点由 compose 部署（如 {@code http://127.0.0.1:18081}），dev/prod 差异走 profile 注入
+ * （ADR-0005）。{@code jina.url} 未配置（空白）时 {@code JinaReader} 仍为 bean、{@code isAvailable()}
+ * 返回 false——源已注册、目录列出 {@code enabled=false}、工具为空（#50 注册/启用分离，优雅降级）。</p>
  */
 @Configuration(proxyBeanMethods = false)
 public class JinaConfig {
 
 	@Bean
-	JinaReader jinaReader(ObjectProvider<ContainerManager> containerManagerProvider, ContainerSpecReader specReader) {
-		ContainerManager containerManager = containerManagerProvider.getIfAvailable(() -> null);
-		return new JinaReader(containerManager, specReader, ContainerEndpoint.hostPort());
+	JinaReader jinaReader(@Value("${jina.url:}") String url) {
+		return new JinaReader(url);
 	}
 
 }

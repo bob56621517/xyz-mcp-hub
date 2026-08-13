@@ -35,9 +35,8 @@ class BochaToolsTest {
 		BochaTools tools = new BochaTools(bochaClient, "test-key");
 		assertThat(tools.getName()).isEqualTo("bocha");
 		assertThat(tools.getScope()).isEqualTo(Scope.NETWORK);
-		// 默认 SourceType.NATIVE（包装 HTTP API），无 protocol
+		// 默认 SourceType.NATIVE（包装 HTTP API）
 		assertThat(tools.getSourceType()).isEqualTo(SourceType.NATIVE);
-		assertThat(tools.getProtocol()).isNull();
 		// 单 search 工具（暴露名由源注册表加 bocha_ 前缀）
 		assertThat(tools.getTools()).hasSize(1);
 	}

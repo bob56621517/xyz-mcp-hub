@@ -14,15 +14,14 @@ import org.springframework.web.servlet.function.ServerResponse;
  * 目录 API（ADR-0011 / issue #34）：{@code GET /xyz-hub/catalog} 机器可读的「源 + 工具」清单，
  * URL 构建器与任意客户端的枚举事实源。
  *
- * <p>每源：{@code name} / {@code type}（native/proxy/container，小写，#50 收敛）/
- * {@code protocol}（container 专有，mcp|rest，其余为 null）/ {@code scope}（host/network，小写）/
- * {@code enabled}（注册/启用分离，#50）/ {@code tools}（带 {@code {source}_} 前缀的注册工具名，
- * 排序稳定；未启用源为空）。组合源已整体移除（#49），目录不再有 {@code type=composite} /
- * {@code base} 溯源字段。</p>
+ * <p>每源：{@code name} / {@code type}（native/proxy，小写，ADR-0016 三型收敛）/
+ * {@code scope}（host/network，小写）/ {@code enabled}（注册/启用分离，#50）/ {@code tools}
+ * （带 {@code {source}_} 前缀的注册工具名，排序稳定；未启用源为空）。组合源已整体移除（#49）；
+ * protocol 字段随容器型溶解移除（ADR-0016），目录不再有 {@code type=composite} / {@code base} /
+ * {@code protocol}。</p>
  *
- * <p>数据三源汇合（代码声明 + 静态冒烟 + 启动发现）：目录反映源注册表（{@link McpSourceRegistry}）
- * 中的全部已注册源（代码/配置固定），未启用源也列出（{@code enabled=false}、tools 空）；
- * proxy / container 源迁入并注册进注册表后即自动出现在目录（验收允许）。
+ * <p>数据两源汇合（代码声明 + proxy 启动发现）：目录反映源注册表（{@link McpSourceRegistry}）
+ * 中的全部已注册源（代码/配置固定），未启用源也列出（{@code enabled=false}、tools 空）。
  * 无认证、仅本地可读（与 MCP 端点一致）。</p>
  */
 @Configuration(proxyBeanMethods = false)
@@ -65,7 +64,6 @@ public class CatalogEndpoint {
 		return new CatalogSource(
 				source.name(),
 				source.type().value(),
-				source.protocol() == null ? null : source.protocol().name().toLowerCase(Locale.ROOT),
 				source.scope().name().toLowerCase(Locale.ROOT),
 				source.enabled(),
 				source.specs().stream().map(spec -> spec.tool().name()).sorted().toList());
@@ -75,11 +73,10 @@ public class CatalogEndpoint {
 	public record Catalog(List<CatalogSource> sources) {
 	}
 
-	/** 单个源的目录条目（机器可读，字段与 ADR-0011 目录 schema 一致）。 */
+	/** 单个源的目录条目（机器可读，字段与 ADR-0011 目录 schema 一致；protocol 随容器型溶解移除，ADR-0016）。 */
 	public record CatalogSource(
 			String name,
 			String type,
-			String protocol,
 			String scope,
 			boolean enabled,
 			List<String> tools) {

@@ -1,6 +1,6 @@
 # xyz-mcp-hub
 
-一个基于 Spring Boot 的 MCP（Model Context Protocol）工具聚合服务。对外暴露统一的单端点（`/xyz-hub/mcp`，Streamable HTTP + SSE），内部以「源」（Source）聚合四类 MCP 工具（Native / Proxy / Container / Host），工具子集由连接 URL 参数（`includes`/`excludes`）在运行时选择——解决 MCP 工具全量注册导致的 Token 浪费问题。
+一个基于 Spring Boot 的 MCP（Model Context Protocol）工具聚合服务。对外暴露统一的单端点（`/xyz-hub/mcp`，Streamable HTTP + SSE），内部以「源」（Source）聚合三类 MCP 工具（Native / Proxy / Host），工具子集由连接 URL 参数（`includes`/`excludes`）在运行时选择——解决 MCP 工具全量注册导致的 Token 浪费问题。部署：引擎（如 jina reader）由 compose 拉起，hub 以宿主 `java -jar` 运行（ADR-0016）。
 
 ## 项目愿景
 
@@ -26,7 +26,7 @@
 
 ### 源（Source）
 
-源是目录里一个可被 `includes`/`excludes` 引用的工具组（一个 `McpEndpointProvider` 实例，native / proxy / container / host 四类；组合源已移除，#49）。Agent CLI 连接单端点 `/xyz-hub/mcp?includes=[bocha*]`（工具名通配，源名匹配已退役，#51），只暴露所选工具视图——按需使用，节约 Token。
+源是目录里一个可被 `includes`/`excludes` 引用的工具组（一个 `McpEndpointProvider` 实例，native / proxy / host 三类；容器型已溶解为 compose 部署细节，组合源已移除，#49，见 ADR-0016）。Agent CLI 连接单端点 `/xyz-hub/mcp?includes=[bocha*]`（工具名通配，源名匹配已退役，#51），只暴露所选工具视图——按需使用，节约 Token。
 
 ### Tool（工具）
 
@@ -36,12 +36,10 @@ Tool 是 MCP 协议中的最小功能单元，工具名统一加 `{source}_` 前
 
 ```
 xyz-mcp-hub/
-├── pom.xml          ← 根聚合（多模块 Maven，ADR-0012）
-├── hub/             ← 核心 JVM 模块：标准 Spring Boot 应用（java -jar 直启，不进 docker）
+├── pom.xml          ← 根聚合（ADR-0016 单模块收敛）
+├── hub/             ← 核心 JVM 模块：标准 Spring Boot 应用（java -jar 直启，永不进容器，ADR-0016）
 │   └── src/
-├── sidecars/        ← 容器化 sidecar（markitdown 容器镜像；playwright 属 HostMcp 本机引擎，不在此）
-│   └── markitdown/  （Dockerfile + pom，mvn install 构建并装入本地 docker）
-├── manifests/       ← mvn 生成的运行规范（mcp-images.yaml，见 #31）
+├── compose.yml      ← 引擎部署（ADR-0016）：拉起引擎容器（现仅 jina reader，暴露 127.0.0.1:18081）
 ├── docs/
 │   └── adr/           ← 架构决策记录（按需创建）
 └── CONTEXT.md          ← 领域词汇表（按需创建）
@@ -50,7 +48,7 @@ xyz-mcp-hub/
 ## 构建与运行
 
 ```bash
-# 根目录测试（聚合 hub + sidecars，约定跳过 Vaadin 前端构建）
+# 根目录测试（聚合 hub，约定跳过 Vaadin 前端构建）
 ./mvnw test -Dvaadin.skip=true
 
 # 打包 hub fatjar
@@ -59,6 +57,9 @@ java -jar hub/target/hub-*.jar
 
 # 开发模式（在 hub 模块）
 ./mvnw -pl hub spring-boot:run -Dvaadin.skip=true
+
+# 引擎（jina reader）——compose 部署，hub 经 127.0.0.1:18081 消费
+docker compose up -d
 ```
 
 ## Playwright 浏览器自动化源（HostMcp）

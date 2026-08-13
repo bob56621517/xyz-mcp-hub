@@ -13,10 +13,9 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>xyz-mcp-hub</name>
-	<description>XYZ MCP Hub 根聚合（多模块 Maven，见 ADR-0012）：hub + sidecars + manifests</description>
+	<description>XYZ MCP Hub 根聚合（ADR-0016 单模块收敛）：hub</description>
 	<modules>
 		<module>hub</module>
-		<module>sidecars/markitdown</module>
 	</modules>
 	<properties>
 		<java.version>25</java.version>
@@ -24,23 +23,6 @@
 		<vaadin.version>25.2.5</vaadin.version>
 		<spring-modulith.version>2.1.0</spring-modulith.version>
 		<playwright.version>1.62.0</playwright.version>
-
-		<!--
-			#31 sidecar 镜像清单 —— 单一事实源（ADR-0012 / #31）。
-			`manifests/mcp-images.yaml` 由根聚合 verify 阶段据此生成（模板 @token@ 替换）；
-			各 sidecar 模块 pom 引用 ${mcp.<name>.image} 作为 docker build tag。两处同源，不漂移。
-			markitdown：本仓库构建（sidecars/markitdown）；jina：第三方引擎，运行时从 GHCR pull。
-		-->
-		<!-- 容器内端口（port）由镜像固定，勿改；hostPort = 宿主映射端口，一律 5 位数、避开 8080/8081 等常用端口 -->
-		<mcp.markitdown.image>xyz-mcp-hub/markitdown:latest</mcp.markitdown.image>
-		<mcp.markitdown.protocol>mcp</mcp.markitdown.protocol>
-		<mcp.markitdown.port>3001</mcp.markitdown.port>
-		<mcp.markitdown.hostPort>13001</mcp.markitdown.hostPort>
-		<!-- jina reader 容器内 8081 = HTTP/1.1 fallback（8080 是 h2c，普通 HTTP/1.1 调用不通，见官方 README） -->
-		<mcp.jina.image>ghcr.io/jina-ai/reader:latest</mcp.jina.image>
-		<mcp.jina.protocol>rest</mcp.jina.protocol>
-		<mcp.jina.port>8081</mcp.jina.port>
-		<mcp.jina.hostPort>18081</mcp.jina.hostPort>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -135,44 +117,6 @@
 			</plugins>
 		</pluginManagement>
 
-		<!-- #31：verify 阶段从模板生成 manifests/mcp-images.yaml（单一事实源 = 本 pom 的 mcp.* 属性） -->
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-antrun-plugin</artifactId>
-				<version>3.1.0</version>
-				<inherited>false</inherited>
-				<executions>
-					<execution>
-						<id>generate-mcp-images-manifest</id>
-						<phase>verify</phase>
-						<goals>
-							<goal>run</goal>
-						</goals>
-						<configuration>
-							<target>
-								<copy file="${project.basedir}/manifests/mcp-images.yaml.tpl"
-									tofile="${project.basedir}/manifests/mcp-images.yaml"
-									overwrite="true">
-									<filterchain>
-										<replacetokens>
-											<token key="mcp.markitdown.image" value="${mcp.markitdown.image}" />
-											<token key="mcp.markitdown.protocol" value="${mcp.markitdown.protocol}" />
-											<token key="mcp.markitdown.port" value="${mcp.markitdown.port}" />
-											<token key="mcp.markitdown.hostPort" value="${mcp.markitdown.hostPort}" />
-											<token key="mcp.jina.image" value="${mcp.jina.image}" />
-											<token key="mcp.jina.protocol" value="${mcp.jina.protocol}" />
-											<token key="mcp.jina.port" value="${mcp.jina.port}" />
-											<token key="mcp.jina.hostPort" value="${mcp.jina.hostPort}" />
-										</replacetokens>
-									</filterchain>
-								</copy>
-							</target>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
 	</build>
 
 </project>

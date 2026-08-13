@@ -24,20 +24,20 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 目录 API 集成测试（ADR-0011 / issue #34，#50 重构）：{@code GET /xyz-hub/catalog} 返回全部
- * 已注册源的机器可读清单。
+ * 目录 API 集成测试（ADR-0011 / issue #34，#50 重构；ADR-0016 三型收敛）：{@code GET /xyz-hub/catalog}
+ * 返回全部已注册源的机器可读清单。
  *
- * <p>主 seam：经真实 HTTP 端点验证目录形状——每源含 name / type / protocol / scope / enabled / tools，
- * 与 ADR-0011 目录 schema 一致（#49 组合源移除后不再有 base；#50 type 只剩 native/proxy/container）。
- * 无认证：请求不带任何 Authorization 头即可读（本端点与 MCP 端点一致，仅本地可读）。</p>
+ * <p>主 seam：经真实 HTTP 端点验证目录形状——每源含 name / type / scope / enabled / tools，与 ADR-0011
+ * 目录 schema 一致（#49 组合源移除后无 base；#50 host 并入 native；ADR-0016 容器型溶解后无 protocol、
+ * type 只剩 native/proxy）。无认证：请求不带任何 Authorization 头即可读（仅本地可读）。</p>
  *
- * <p>源集冻结（#50 注册/启用分离）：目录列出**所有已注册源**（代码/配置固定），enabled 反映配置
- * 门控——bocha 自给 mock key（enabled=true）、github auth-header 置空（enabled=false）、proxy 指向
- * 不可达（enabled=true 但工具空）、docker 禁用（容器源 enabled=false）。断言不随外部环境
- * （GITHUB_AUTH_HEADER / 网络 / docker）抖动。</p>
+ * <p>源集冻结（#50 注册/启用分离）：目录列出**所有已注册源**（代码/配置固定），enabled 反映配置门控——
+ * bocha 自给 mock key（enabled=true）、github auth-header 置空（enabled=false）、proxy 指向不可达
+ * （enabled=true 但工具空）、jina.url 置空（native 源 enabled=false）。断言不随外部环境
+ * （GITHUB_AUTH_HEADER / 网络 / 引擎）抖动。</p>
  *
  * <p>无外部依赖：bocha 上游用 JDK {@link HttpServer} mock（同 {@code McpSingleEndpointTest} 手法）；
- * proxy（context7/grep-app/wikidata）上游全部指向不可达地址；docker.enabled=false。</p>
+ * proxy（context7/grep-app/wikidata）上游全部指向不可达地址；jina.url 置空不连真实引擎。</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class McpCatalogEndpointTest {
@@ -83,8 +83,8 @@ class McpCatalogEndpointTest {
 		registry.add("mcp.proxies[3].name", () -> "github");
 		registry.add("mcp.proxies[3].upstream-url", () -> UNREACHABLE);
 		registry.add("mcp.proxies[3].auth-header", () -> "");
-		// docker 禁用：容器源（markitdown/jina）enabled=false（不依赖 manifest / docker daemon）
-		registry.add("docker.enabled", () -> "false");
+		// jina：native 源，端点配置化（ADR-0016）。测试置空 jina.url → enabled=false（不连真实引擎）
+		registry.add("jina.url", () -> "");
 	}
 
 	private static void respond(HttpExchange exchange, String json) throws IOException {
@@ -107,14 +107,13 @@ class McpCatalogEndpointTest {
 
 	@Test
 	void catalogListsAllRegisteredSourcesWithFrozenSet() throws Exception {
-		// 已注册源集 = 代码/配置固定（#50）：native（utils/bocha/playwright）+ proxy（github/
-		// context7/grep-app/wikidata）+ container（markitdown/jina），未启用源也列出
+		// 已注册源集 = 代码/配置固定（#50，ADR-0016 去 markitdown）：native（utils/bocha/playwright/jina）
+		// + proxy（github/context7/grep-app/wikidata），未启用源也列出
 		JsonNode sources = fetchCatalog().get("sources");
 		assertThat(sources.isArray()).isTrue();
 		assertThat(names(sources)).containsExactlyInAnyOrder(
-				"bocha", "utils", "playwright",
-				"github", "context7", "grep-app", "wikidata",
-				"markitdown", "jina");
+				"bocha", "utils", "playwright", "jina",
+				"github", "context7", "grep-app", "wikidata");
 	}
 
 	@Test
@@ -133,8 +132,8 @@ class McpCatalogEndpointTest {
 	@Test
 	void unenabledSourcesAreListedWithEmptyTools() throws Exception {
 		JsonNode sources = fetchCatalog().get("sources");
-		// 未启用源（github/容器源）目录列出、enabled=false、tools 空
-		for (String name : List.of("github", "markitdown", "jina")) {
+		// 未启用源（github / jina，jina.url 置空）目录列出、enabled=false、tools 空
+		for (String name : List.of("github", "jina")) {
 			JsonNode source = sourceByName(sources, name);
 			assertThat(source.get("enabled").asBoolean()).as("源 %s 应未启用", name).isFalse();
 			assertThat(toolNames(source)).as("源 %s 工具应为空", name).isEmpty();
@@ -147,20 +146,17 @@ class McpCatalogEndpointTest {
 		}
 	}
 
-	// ---- 验收 2：各源含 type / protocol / scope / enabled / tools；type 只剩 native/proxy/container ----
-	// 形状契约（与具体源无关，目录自动增长后仍应成立）
+	// ---- 验收 2：各源含 type / scope / enabled / tools；type 只剩 native/proxy（ADR-0016） ----
 
 	@Test
 	void eachSourceCarriesValidCatalogSchema() throws Exception {
 		JsonNode sources = fetchCatalog().get("sources");
 		for (JsonNode source : sources) {
 			assertThat(source.get("name").asText()).isNotBlank();
-			// type 为合法的源类型小写取值（native/proxy/container，#49 组合源、#50 host 已收敛）
-			assertThat(source.get("type").asText())
-				.isIn("native", "proxy", "container");
-			// protocol：container 专有（mcp|rest），其余为 null
-			JsonNode protocol = source.get("protocol");
-			assertThat(protocol.isNull() || protocol.asText().matches("mcp|rest")).isTrue();
+			// type 为合法的源类型小写取值（native/proxy，#49 组合源、#50 host、ADR-0016 container 已收敛）
+			assertThat(source.get("type").asText()).isIn("native", "proxy");
+			// protocol：容器型已溶解（ADR-0016），目录不再有 protocol 字段
+			assertThat(source.has("protocol")).as("目录不应再有 protocol 字段").isFalse();
 			// scope：host / network 小写
 			assertThat(source.get("scope").asText()).isIn("host", "network");
 			// enabled：布尔字段（注册/启用分离，#50）
@@ -172,7 +168,7 @@ class McpCatalogEndpointTest {
 		}
 	}
 
-	// ---- 冒烟：bocha / utils 的工具为带 {source}_ 前缀的注册名 ----
+	// ---- 冒烟：bocha / utils / playwright 的工具与类型 ----
 
 	@Test
 	void bochaToolsArePrefixedAndSorted() throws Exception {
@@ -198,7 +194,7 @@ class McpCatalogEndpointTest {
 		assertThat(toolNames(playwright)).contains("playwright_web_session", "playwright_browser_navigate");
 	}
 
-	// ---- 冒烟：proxy / container 源在目录中的类型 ----
+	// ---- 冒烟：proxy / jina 的类型（ADR-0016 三型收敛） ----
 
 	@Test
 	void proxySourcesAreListedAsProxyType() throws Exception {
@@ -210,12 +206,11 @@ class McpCatalogEndpointTest {
 	}
 
 	@Test
-	void containerSourcesAreListedAsContainerType() throws Exception {
-		JsonNode sources = fetchCatalog().get("sources");
-		for (String name : List.of("markitdown", "jina")) {
-			assertThat(sourceByName(sources, name).get("type").asText()).as("源 %s 应 type=container", name)
-				.isEqualTo("container");
-		}
+	void jinaIsListedAsNativeType() throws Exception {
+		// jina 归 native（ADR-0016：端点配置化 + 薄 HTTP 包装；容器型已溶解）
+		JsonNode jina = sourceByName(fetchCatalog().get("sources"), "jina");
+		assertThat(jina.get("type").asText()).isEqualTo("native");
+		assertThat(jina.get("scope").asText()).isEqualTo("network");
 	}
 
 	private JsonNode fetchCatalog() throws Exception {

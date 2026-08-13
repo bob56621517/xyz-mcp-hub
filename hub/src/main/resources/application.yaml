@@ -65,15 +65,8 @@ playwright:
     max: 8
     scan-interval-seconds: 60
 
-docker:
-  # docker 顶级模块（ADR-0012 #32）：ContainerManager 容器生命周期管理（首用拉起/健康检查/闲置回收/关闭销毁）。
-  # manifest-path 指向 mvn 生成的 manifests/mcp-images.yaml（容器运行规范 image/protocol/port/hostPort，
-  # 缺失视为无容器规格、不抛）；ttl-seconds 容器闲置自动回收（秒，默认 600）；scan-interval-seconds 后台
-  # 回收扫描周期（秒，默认 60）；start-timeout-seconds 健康检查等待上限（秒，默认 60）；pull-timeout-seconds
-  # 镜像拉取超时（秒，默认 300）。enabled=false 时不创建容器管理 bean。
-  enabled: true
-  manifest-path: manifests/mcp-images.yaml
-  ttl-seconds: 600
-  scan-interval-seconds: 60
-  start-timeout-seconds: 60
-  pull-timeout-seconds: 300
+jina:
+  # jina reader 端点（ADR-0016 配置化，取代 docker 物化）：compose 部署，暴露 127.0.0.1 端口；
+  # dev/prod 差异走 profile 注入（ADR-0005）。置空（未配置）→ 源未启用（已注册、目录列出
+  # enabled=false、工具为空，#50 注册/启用分离）
+  url: ${JINA_URL:http://127.0.0.1:18081}

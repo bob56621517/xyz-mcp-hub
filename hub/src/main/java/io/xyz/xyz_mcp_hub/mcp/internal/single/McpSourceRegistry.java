@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
-import io.xyz.xyz_mcp_hub.docker.Protocol;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
 import io.xyz.xyz_mcp_hub.mcp.SourceType;
@@ -28,9 +27,9 @@ import org.springframework.ai.tool.ToolCallback;
  *
  * <p>原生源（{@link NativeMcp}）工具来自代码声明（{@link #getTools()}）；#35 起 proxy 源
  * （{@link ProxyMcpProvider}）一并迁入——工具清单启动时向上游 {@code listTools} 发现并缓存（公有云
- * 上游不受控，见工具清单来源规则）；#37 起容器源（{@link ContainerMcp}，如 markitdown）迁入——工具为
- * 静态冒烟清单。工具名统一加 {@code {source}_} 前缀保证跨源全局唯一（MCP 工具名规范不允许点，暴露名
- * 与语法名同一套体系，零映射）。</p>
+ * 上游不受控，见工具清单来源规则）。容器型已溶解（ADR-0016：docker 模块退役、markitdown 退役、
+ * jina 归 native 配置端点），不再有容器源。工具名统一加 {@code {source}_} 前缀保证跨源全局唯一
+ * （MCP 工具名规范不允许点，暴露名与语法名同一套体系，零映射）。</p>
  *
  * <p>注册/启用分离（#50，ADR-0005 二次修订）：注册表**不再用 {@code isEnabled()} 过滤源**——
  * 所有 provider 演化成 source（代码/配置固定），{@code enabled} 由 {@code isEnabled()} 决定。
@@ -50,23 +49,23 @@ public class McpSourceRegistry {
 	private static final Logger log = LoggerFactory.getLogger(McpSourceRegistry.class);
 
 	/**
-	 * 单个源：源名 + 目录元数据（type/protocol/scope/enabled，ADR-0011）+ 底层 provider + 带前缀的工具规格。
+	 * 单个源：源名 + 目录元数据（type/scope/enabled，ADR-0011，ADR-0016 去 protocol）+ 底层 provider
+	 * + 带前缀的工具规格。
 	 *
 	 * <p>元数据模型（#34）为 #35/#36/#37 共用、一次定稿：{@code type} 由 provider 声明
-	 * （{@link McpEndpointProvider#getSourceType()}）；{@code protocol} 为 container 专有（mcp|rest，
-	 * 非容器源为 null）；{@code scope} 取 provider 部署范围；{@code enabled} 为注册/启用分离（#50）——
-	 * 源仍已注册（代码/配置固定），是否启用由 {@code isEnabled()} 决定。未启用源 {@code specs} 为空、
-	 * 工具不进全量表。组合源已整体移除（#49），不再有 {@code base} 溯源字段。</p>
+	 * （{@link McpEndpointProvider#getSourceType()}，native/proxy，ADR-0016 三型收敛）；{@code scope}
+	 * 取 provider 部署范围；{@code enabled} 为注册/启用分离（#50）——源仍已注册（代码/配置固定），是否
+	 * 启用由 {@code isEnabled()} 决定。未启用源 {@code specs} 为空、工具不进全量表。组合源已整体移除
+	 * （#49）；容器型已溶解（ADR-0016），不再有 protocol 字段。</p>
 	 *
 	 * @param name 源名（目录元数据 / 工具名 {@code {source}_} 前缀；源名不再被 URL 引用，#51）
-	 * @param type 源类型（native/proxy/container，#50 收敛）
-	 * @param protocol 容器接入协议（container 专有，其余为 null）
+	 * @param type 源类型（native/proxy，ADR-0016 三型收敛）
 	 * @param scope 部署范围（host/network）
 	 * @param enabled 是否启用（未启用源目录列出、tools 空）
 	 * @param provider 底层端点提供者
 	 * @param specs 工具规格（带 {@code {source}_} 前缀的注册；未启用源为空）
 	 */
-	public record McpSource(String name, SourceType type, Protocol protocol, Scope scope, boolean enabled,
+	public record McpSource(String name, SourceType type, Scope scope, boolean enabled,
 			McpEndpointProvider provider, List<McpServerFeatures.AsyncToolSpecification> specs) {
 	}
 
@@ -226,11 +225,9 @@ public class McpSourceRegistry {
 				.map(toolCallback -> toPrefixedSpec(sourceName, toolCallback))
 				.toList()
 			: List.of();
-		// #34 目录元数据：type 由 provider 声明；protocol 仅容器源有（mcp|rest，#53 起统一取 provider
-		// 声明——ContainerMcp 子类从清单读取、容器型工具类即源如 JinaTools 返回常量）；scope 取 provider
-		// 部署范围。未启用容器源（docker 缺失/清单缺规格）不取 protocol（requireSpec 会抛）
-		Protocol protocol = enabled ? provider.getProtocol() : null;
-		return new McpSource(sourceName, provider.getSourceType(), protocol, provider.getScope(), enabled, provider, specs);
+		// #34 目录元数据：type 由 provider 声明（native/proxy，ADR-0016 三型收敛）；scope 取 provider
+		// 部署范围。容器型已溶解（ADR-0016），不再有 protocol 字段
+		return new McpSource(sourceName, provider.getSourceType(), provider.getScope(), enabled, provider, specs);
 	}
 
 	/**
@@ -242,19 +239,19 @@ public class McpSourceRegistry {
 	private McpSource toProxySource(String sourceName, ProxyMcpProvider proxy, boolean enabled) {
 		if (!enabled) {
 			log.info("proxy 源 {} 未启用（isEnabled=false），目录列出 enabled=false、工具为空", sourceName);
-			return new McpSource(sourceName, proxy.getSourceType(), null, proxy.getScope(), false, proxy, List.of());
+			return new McpSource(sourceName, proxy.getSourceType(), proxy.getScope(), false, proxy, List.of());
 		}
 		try {
 			List<McpServerFeatures.AsyncToolSpecification> specs = proxy.discoverTools().stream()
 				.map(spec -> renamePrefixed(sourceName, spec))
 				.toList();
-			return new McpSource(sourceName, proxy.getSourceType(), null, proxy.getScope(), true, proxy, specs);
+			return new McpSource(sourceName, proxy.getSourceType(), proxy.getScope(), true, proxy, specs);
 		}
 		catch (RuntimeException e) {
 			// #50 注册/启用分离：上游不可达不再把源整体剔除出目录——源仍注册、enabled 保持配置值、
 			// 工具为空 + 日志，应用照常启动、不拖垮启动（#35）
 			log.error("proxy 源 {} 启动发现失败，工具为空（源已注册但上游不可达）: {}", sourceName, e.getMessage());
-			return new McpSource(sourceName, proxy.getSourceType(), null, proxy.getScope(), true, proxy, List.of());
+			return new McpSource(sourceName, proxy.getSourceType(), proxy.getScope(), true, proxy, List.of());
 		}
 	}
 

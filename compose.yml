@@ -1,0 +1,24 @@
+# 引擎部署（ADR-0016）：compose 只拉起引擎容器（现仅 jina，暴露 127.0.0.1 宿主端口）；
+# hub 以宿主 java -jar 运行（永不进容器，file:// 语义 + playwright 要求，见 ADR-0016），经 127.0.0.1 端点消费。
+# 开发/生产同构，差异（加固）走 compose profile 或环境变量。
+# 启动：docker compose up -d
+services:
+  jina:
+    image: ghcr.io/jina-ai/reader:latest
+    container_name: xyz-hub-jina
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18081:8081" # HTTP/1.1 fallback 端口（8080 是 h2c，普通 HTTP/1.1 调用不通，见官方 README）
+    healthcheck:
+      # 轻量就绪探针：GET 根路径非 5xx 即视为 HTTP 服务就绪（不触发真实代抓；镜像自带 node，无需额外工具）
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8081/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - xyz-mcp-hub
+
+networks:
+  xyz-mcp-hub:
+    name: xyz-mcp-hub

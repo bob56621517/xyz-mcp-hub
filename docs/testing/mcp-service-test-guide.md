@@ -13,9 +13,9 @@
 
 ### 顶级模块能力层（S1，#53 工具类即源）— plain JUnit 直调
 
-顶级工具模块（bocha/playwright/jina/docker）是纯能力 API，能力测试用 **plain JUnit 直接 new 调用**（不经 Spring/MCP），可注入 mock/fake 或内嵌模拟上游，不触网、不依赖容器：
+顶级工具模块（bocha/playwright/jina）是纯能力 API，能力测试用 **plain JUnit 直接 new 调用**（不经 Spring/MCP），可注入 mock/fake 或内嵌模拟上游，不触网、不依赖引擎容器（ADR-0016：docker 模块退役，jina 端点配置化）：
 
-- 能力类：`BochaClient`/`JinaReader` 等，构造注入 `RestClient.Builder`/fake `ContainerManager` + 内嵌 `HttpServer` 上游；`WebSessionRegistry`（playwright 会话租约）经包私有 handle 工厂 seam 注入 mock 句柄测上限/TTL 回收（不触 chromium）。
+- 能力类：`BochaClient`/`JinaReader` 等，构造注入 `RestClient.Builder`/端点 URL + 内嵌 `HttpServer` 上游；`WebSessionRegistry`（playwright 会话租约）经包私有 handle 工厂 seam 注入 mock 句柄测上限/TTL 回收（不触 chromium）。
 - 工具类即源：`BochaTools`/`PlaywrightTools`/`JinaTools` 实现 `McpEndpointProvider`，可 `new` 直接调用 `@Tool` 方法测试（mock 能力类验证元数据与路由）。
 - 示例：`BochaClientTest`（MockRestServiceServer）、`JinaReaderTest`（file:// 本地解析 + 内嵌上游）、`WebSessionRegistryTest`（会话租约：上限/close/TTL 回收）、`BochaToolsTest`/`JinaToolsTest`/`PlaywrightToolsTest`（源元数据 + 路由，playwright mock 注册表与会话句柄）。
 
@@ -43,9 +43,9 @@
 | `@requires-web` | 需真实外部网络 | 探活外部域名可达性 |
 | `@requires-token 环境变量名` | 需指定环境变量（token） | 检查 `${环境变量名:-unset}` 是否存在 |
 | `@requires-service 服务名` | 需先启动部署的服务（未来需求） | 探活服务端口 |
-| `@requires-docker` | 需本机 docker daemon 可用（容器冒烟，如 #32） | 检查 `docker info` 通过；缺镜像/清单时按冒烟内提示补齐 |
+| `@requires-docker` | 需本机 docker daemon 可用（引擎容器冒烟，ADR-0016 compose 部署） | 检查 `docker info` 通过；jina 引擎需先 `docker compose up -d`（未就绪时冒烟提示） |
 
-> **jina 容器冒烟内存要求（#61）**：jina reader 镜像硬编码 `puppeteer.launch(timeout:10s)`，若 Docker Desktop 的 WSL2 内存不足（`.wslconfig` 里 `memory=1GB` 时可用仅 ~512MB），Chrome 启动被拖到 8-13s 撞超时崩溃，容器源不可用。本机跑 jina 冒烟需 WSL2 ≥4GB 内存（`.wslconfig` 设 `memory=4GB`，按需分配不占宿主；改后 `wsl --shutdown` + 重启 Docker Desktop 生效）。
+> **jina 引擎冒烟内存要求（#61）**：jina reader 镜像硬编码 `puppeteer.launch(timeout:10s)`，若 Docker Desktop 的 WSL2 内存不足（`.wslconfig` 里 `memory=1GB` 时可用仅 ~512MB），Chrome 启动被拖到 8-13s 撞超时崩溃，引擎不可用。本机跑 jina 冒烟需 WSL2 ≥4GB 内存（`.wslconfig` 设 `memory=4GB`，按需分配不占宿主；改后 `wsl --shutdown` + 重启 Docker Desktop 生效）。
 
 示例：
 

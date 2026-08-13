@@ -8,22 +8,22 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
-import io.xyz.xyz_mcp_hub.docker.ContainerEndpoint;
-import io.xyz.xyz_mcp_hub.docker.ContainerManager;
-import io.xyz.xyz_mcp_hub.docker.ContainerSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * jina 顶级模块的容器 REST 转发客户端（#53 从 containermcp 的 {@code ContainerRestClient} 提升）：
- * 把一次 HTTP 请求转发到容器内 REST API，返回响应体文本（如 jina reader 的 markdown）。
+ * jina reader 的 REST 转发客户端（ADR-0016 配置化，取代容器物化）：把一次 HTTP 请求转发到
+ * jina reader 端点（{@code jina.url}，compose 部署，如 {@code http://127.0.0.1:18081}），
+ * 返回响应体文本（markdown）。
  *
- * <p>容器生命周期（首用拉起 / 防重拉 / 闲置回收 / 关闭销毁）由 {@code docker} 模块的
- * {@code ContainerManager} 管理，本类只在调用时 {@code ensureRunning} 拉起/复用容器再发请求——
- * 每次调用独立连接，无跨调用残留。</p>
+ * <p>能力：{@code postJson}（http(s) 代抓，POST {@code {"url":...}} 到根路径）与
+ * {@code uploadFile}（本地文件转换，multipart {@code file} 字段上传，jina 按字节嗅探 MIME——
+ * 支持 pdf/docx/xlsx/pptx 及文本，见 jina-reader 文档）。容器/上游生命周期由 compose 承担，
+ * 本类不做任何编排。</p>
  *
- * <p>非 2xx 响应抛 {@link IllegalStateException}（携带截断后的响应体便于定位），网络失败同样抛；
- * 由工具层捕获转为友好文本（见 {@code JinaTools}）。</p>
+ * <p>连接层失败（{@link IOException}，含引擎启动窗口的「no bytes」）短重试覆盖临时抖动；
+ * HTTP 非 2xx（服务已就绪但返回错误）与线程中断不重试。非 2xx 抛 {@link IllegalStateException}
+ * （携带截断后的响应体便于定位），由工具层捕获转为友好文本。</p>
  */
 public class JinaRestClient {
 
@@ -32,91 +32,126 @@ public class JinaRestClient {
 	/** 单次请求超时（jina 真实浏览器渲染 + 内容抓取较慢，放宽到 60s）。 */
 	private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
 
-	/** 建连超时（容器端口已探活，本地映射建连快）。 */
+	/** 建连超时（本地映射建连快）。 */
 	private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
 	/** 错误信息中响应体最大长度（过长截断）。 */
 	private static final int ERROR_BODY_LIMIT = 500;
 
-	/**
-	 * 启动竞态重试次数（含首次）。实测（#38 冒烟）：ContainerManager 健康检查是 TCP 探活，jina 容器
-	 * TCP 端口绑定后 Node 应用（含浏览器渲染服务）仍需数秒 HTTP 就绪，立即调用会
-	 * 「HTTP/1.1 header parser received no bytes」；对齐 {@code ContainerMcpClient} 的
-	 * {@code INITIALIZE_RETRIES} 模式，对连接层失败重试覆盖启动窗口。
-	 */
-	private static final int CALL_RETRIES = 30;
+	/** 连接层失败重试次数（含首次）。引擎由 compose 管理，启动窗口小，短重试覆盖临时抖动即可。 */
+	private static final int CALL_RETRIES = 5;
 
 	/** 重试间隔（毫秒）。 */
 	private static final long RETRY_DELAY_MS = 1_000;
 
-	private final ContainerEndpoint endpoint;
-	private final ContainerManager containerManager;
-	// 共享连接：容器 REST 调用低频，HttpClient 实例复用即可（连接池默认按 host 复用）
+	/** multipart 上传的 file 字段名（jina-reader 约定）。 */
+	private static final String FILE_FIELD = "file";
+
+	private final String baseUrl;
 	private final HttpClient http;
 
-	/** @param containerManager 首用拉起 + 幂等复用容器（可为 null，测试注入 fake 场景由 fake 承担） */
-	public JinaRestClient(ContainerEndpoint endpoint, ContainerManager containerManager) {
-		this.endpoint = endpoint;
-		this.containerManager = containerManager;
+	/** @param baseUrl jina reader 端点（如 {@code http://127.0.0.1:18081}）；空白允许（源未启用时不被调用）。 */
+	public JinaRestClient(String baseUrl) {
+		String raw = baseUrl == null ? "" : baseUrl;
+		this.baseUrl = raw.endsWith("/") ? raw.substring(0, raw.length() - 1) : raw;
 		this.http = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
 	}
 
 	/**
-	 * 向容器 REST 端点发送 POST JSON 请求，返回响应体（UTF-8 文本）。
+	 * POST JSON 请求到端点（根路径 {@code ""} 如 jina 的 {@code POST /}），返回响应体（UTF-8 文本）。
 	 *
-	 * <p>连接层失败（{@link IOException}，含启动竞态的「no bytes」）重试 {@code CALL_RETRIES} 次，
-	 * 覆盖 jina 容器 TCP 就绪但应用未就绪的窗口；每次重试前 {@code ensureRunning}（touch 容器防短 TTL
-	 * 回收）。HTTP 非 2xx（服务已就绪但返回错误）与线程中断不重试。</p>
-	 *
-	 * @param path 端点路径（默认根路径传 {@code ""}，如 jina 的 {@code POST /}）
+	 * @param path 端点路径（默认根路径传 {@code ""}）
 	 * @param jsonBody JSON 请求体（如 {@code {"url": "https://example.com"}}）
 	 */
-	public String postJson(ContainerSpec spec, String path, String jsonBody) {
-		Exception lastError = null;
-		for (int attempt = 1; attempt <= CALL_RETRIES; attempt++) {
-			// 每次重试 ensureRunning：touch 容器（防短 TTL/并发回收在重试窗口内回收容器）；若已被回收则重新拉起（幂等）
-			if (containerManager != null) {
-				containerManager.ensureRunning(spec);
-			}
-			try {
-				return sendOnce(spec, path, jsonBody);
-			}
-			catch (IOException e) {
-				lastError = e;
-				// 连接不可达（ConnectException/UnknownHostException，含连接超时）不是启动窗口：
-				// 容器未运行/端口错，重试也白费，快速失败
-				if (isUnreachable(e)) {
-					break;
-				}
-				log.warn("调用容器 {} REST 端点失败（第 {}/{} 次，将重试）：{}",
-					spec.name(), attempt, CALL_RETRIES, e.getMessage());
-				if (attempt < CALL_RETRIES) {
-					sleep(RETRY_DELAY_MS);
-				}
-			}
-		}
-		throw new IllegalStateException("调用容器 " + spec.name() + " REST 端点失败（" + CALL_RETRIES
-			+ " 次重试后仍失败）：" + (lastError == null ? "" : lastError.getMessage()), lastError);
-	}
-
-	/** 单次 POST 请求；连接层失败抛 {@link IOException}（由调用方重试），HTTP 非 2xx / 中断抛异常不重试。 */
-	private String sendOnce(ContainerSpec spec, String path, String jsonBody) throws IOException {
-		URI uri = URI.create(endpoint.restUrl(spec) + path);
+	public String postJson(String path, String jsonBody) {
+		URI uri = URI.create(requireBase() + path);
 		HttpRequest request = HttpRequest.newBuilder(uri)
 			.timeout(REQUEST_TIMEOUT)
 			.header("Content-Type", "application/json")
 			.POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8))
 			.build();
+		return sendWithRetry(request);
+	}
+
+	/**
+	 * 上传文件（multipart {@code file} 字段）到端点根路径，返回转换后的 markdown。
+	 *
+	 * <p>jina 按字节嗅探 MIME：{@code file} 字段接受 pdf/docx/xlsx/pptx 及文本；Multipart 流式传输，
+	 * 无 base64 膨胀。本地文件坐标 = hub 宿主文件系统（ADR-0016，调用方读文件后传字节）。</p>
+	 *
+	 * @param content 文件字节
+	 * @param filename 文件名（multipart filename 字段，jina 据此/字节嗅探）
+	 */
+	public String uploadFile(byte[] content, String filename) {
+		URI uri = URI.create(requireBase());
+		String boundary = "----hub" + Long.toHexString(System.nanoTime());
+		byte[] preamble = ("--" + boundary + "\r\n"
+			+ "Content-Disposition: form-data; name=\"" + FILE_FIELD + "\"; filename=\""
+			+ sanitizeFilename(filename) + "\"\r\n"
+			+ "Content-Type: application/octet-stream\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+		byte[] epilogue = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+		HttpRequest request = HttpRequest.newBuilder(uri)
+			.timeout(REQUEST_TIMEOUT)
+			.header("Content-Type", "multipart/form-data; boundary=" + boundary)
+			.POST(HttpRequest.BodyPublishers.concat(
+				HttpRequest.BodyPublishers.ofByteArray(preamble),
+				HttpRequest.BodyPublishers.ofByteArray(content),
+				HttpRequest.BodyPublishers.ofByteArray(epilogue)))
+			.build();
+		return sendWithRetry(request);
+	}
+
+	/** 端点未配置时快速失败（源未启用不应被调用，兜底说明）。 */
+	private String requireBase() {
+		if (baseUrl.isBlank()) {
+			throw new IllegalStateException("jina 端点未配置（jina.url，见 ADR-0016）");
+		}
+		return baseUrl;
+	}
+
+	/** multipart filename 去 CR/LF（防 header 注入）与引号。 */
+	private static String sanitizeFilename(String filename) {
+		if (filename == null) {
+			return "file";
+		}
+		return filename.replace("\r", "").replace("\n", "").replace("\"", "'");
+	}
+
+	/** 连接层失败重试；HTTP 非 2xx / 中断不重试。 */
+	private String sendWithRetry(HttpRequest request) {
+		Exception lastError = null;
+		for (int attempt = 1; attempt <= CALL_RETRIES; attempt++) {
+			try {
+				return sendOnce(request);
+			}
+			catch (IOException e) {
+				lastError = e;
+				// 连接不可达（ConnectException/UnknownHostException，含连接超时）不是抖动：端点没起，重试也白费
+				if (isUnreachable(e)) {
+					break;
+				}
+				log.warn("调用 jina 端点失败（第 {}/{} 次，将重试）：{}", attempt, CALL_RETRIES, e.getMessage());
+				if (attempt < CALL_RETRIES) {
+					sleep(RETRY_DELAY_MS);
+				}
+			}
+		}
+		throw new IllegalStateException("调用 jina 端点失败（" + CALL_RETRIES
+			+ " 次重试后仍失败）：" + (lastError == null ? "" : lastError.getMessage()), lastError);
+	}
+
+	/** 单次请求；连接层失败抛 {@link IOException}（由调用方重试），HTTP 非 2xx / 中断抛异常不重试。 */
+	private String sendOnce(HttpRequest request) throws IOException {
 		final HttpResponse<String> response;
 		try {
 			response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 		}
 		catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new IllegalStateException("调用容器 " + spec.name() + " REST 端点被中断：" + uri, e);
+			throw new IllegalStateException("调用 jina 端点被中断：" + request.uri(), e);
 		}
 		if (response.statusCode() >= 400) {
-			throw new IllegalStateException("容器 " + spec.name() + " 返回 HTTP " + response.statusCode()
+			throw new IllegalStateException("jina 返回 HTTP " + response.statusCode()
 				+ "：" + truncate(response.body()));
 		}
 		return response.body();

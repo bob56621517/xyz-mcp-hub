@@ -2,7 +2,6 @@ package io.xyz.xyz_mcp_hub.mcp;
 
 import java.util.List;
 
-import io.xyz.xyz_mcp_hub.docker.Protocol;
 import org.springframework.ai.tool.ToolCallback;
 
 /**
@@ -28,11 +27,11 @@ public interface McpEndpointProvider {
 	Scope getScope();
 
 	/**
-	 * 源类型（目录 API 元数据，ADR-0011 / issue #34，#50 收敛）：native / proxy / container。
+	 * 源类型（目录 API 元数据，ADR-0011 / issue #34，#50 收敛，ADR-0016 三型）：native / proxy。
 	 *
-	 * <p>默认 {@link SourceType#NATIVE}；{@code HostMcp} 不再覆盖（host 并入 native，靠
-	 * {@code scope} 表达部署，#50），ProxyMcp / ContainerMcp 各自覆盖。组合源已整体移除（#49），
-	 * 不再有 composite 类型。</p>
+	 * <p>默认 {@link SourceType#NATIVE}；{@code HostMcp} 不覆盖（host 并入 native，靠
+	 * {@code scope} 表达部署，#50），ProxyMcp 覆盖为 {@code PROXY}。容器型已溶解（ADR-0016：
+	 * 容器只是 compose 部署细节，不再是源类型），无 container 类型。组合源已整体移除（#49）。</p>
 	 */
 	default SourceType getSourceType() {
 		return SourceType.NATIVE;
@@ -57,18 +56,6 @@ public interface McpEndpointProvider {
 	 */
 	default boolean isEnabled() {
 		return true;
-	}
-
-	/**
-	 * 容器接入协议（目录元数据 protocol 字段，container 专有）。默认 {@code null}（非容器源）；
-	 * 容器型工具类即源（如 {@code JinaTools}）覆盖返回 {@link Protocol#REST}（#53 工具类即源——
-	 * 工具类直接实现本接口，不再经 {@code ContainerMcp} 包装类，故 protocol 由工具类声明）。
-	 *
-	 * <p>注意：{@code ContainerMcp} 子类仍覆盖此方法从清单读取（mcp|rest，见
-	 * {@code ContainerMcp#getProtocol}）。</p>
-	 */
-	default Protocol getProtocol() {
-		return null;
 	}
 
 }

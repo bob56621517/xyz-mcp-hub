@@ -1,4 +1,4 @@
-package io.xyz.xyz_mcp_hub.mcp.internal.containermcp;
+package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.jina;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Optional;
 
-import io.xyz.xyz_mcp_hub.docker.Protocol;
 import io.xyz.xyz_mcp_hub.jina.JinaReader;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
 import io.xyz.xyz_mcp_hub.mcp.SourceType;
@@ -20,9 +19,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.tool.ToolCallback;
 
 /**
- * JinaTools 工具类即源测试（#53）：验证 {@link JinaTools} 作为 {@code McpEndpointProvider} 的源元数据
- * （name/scope/type/protocol/enabled）与 {@code reader} 工具的 scheme 路由——http(s) 走 SSRF 预检 +
- * 容器代抓、file:// 走本地解析。HTTP/文件细节由 {@code JinaReaderTest}（能力层）覆盖，此处 mock
+ * JinaTools 工具类即源测试（ADR-0016 native 化）：验证 {@link JinaTools} 作为 {@code McpEndpointProvider}
+ * 的源元数据（name/scope/type/enabled）与 {@code reader} 工具的 scheme 路由——http(s) 走 SSRF 预检 +
+ * 代抓、file:// 走本地文件上传。HTTP/文件细节由 {@code JinaReaderTest}（能力层）覆盖，此处 mock
  * {@link JinaReader} 只测工具类的路由与源语义。
  */
 class JinaToolsTest {
@@ -33,15 +32,15 @@ class JinaToolsTest {
 		return new JinaTools(jinaReader, new SsrUrlGuard());
 	}
 
-	// ---- 源元数据（工具类即源） ----
+	// ---- 源元数据（工具类即源，native） ----
 
 	@Test
 	void exposesSourceMetadata() {
 		JinaTools tools = tools();
 		assertThat(tools.getName()).isEqualTo("jina");
 		assertThat(tools.getScope()).isEqualTo(Scope.NETWORK);
-		assertThat(tools.getSourceType()).isEqualTo(SourceType.CONTAINER);
-		assertThat(tools.getProtocol()).isEqualTo(Protocol.REST);
+		// native 源：type 默认 NATIVE（ADR-0016，container 型溶解，无 protocol）
+		assertThat(tools.getSourceType()).isEqualTo(SourceType.NATIVE);
 		// reader 单工具注册
 		assertThat(tools.getTools()).hasSize(1);
 	}
@@ -75,10 +74,11 @@ class JinaToolsTest {
 		assertThat(registry.allToolNames()).isEmpty();
 	}
 
-	// ---- reader 路由：http(s) → SSRF 预检 + 容器代抓 ----
+	// ---- reader 路由：http(s) → SSRF 预检 + 代抓 ----
 
 	@Test
 	void httpUrlDelegatesToReaderAfterSsfrPass() {
+		when(jinaReader.isAvailable()).thenReturn(true);
 		when(jinaReader.readUrl("https://example.com/page")).thenReturn("# markdown");
 		// @Tool 返回 String 会被 Spring AI 结果转换器 JSON 编码（全库既有行为），用 contains 断言
 		assertThat(callReader("{\"url\":\"https://example.com/page\"}")).contains("# markdown");
@@ -88,23 +88,26 @@ class JinaToolsTest {
 
 	@Test
 	void httpPrivateUrlRejectedBeforeForwarding() {
+		when(jinaReader.isAvailable()).thenReturn(true);
 		String result = callReader("{\"url\":\"http://127.0.0.1:8080/internal\"}");
 		assertThat(result).contains("SSRF 防护拦截");
 		verify(jinaReader, never()).readUrl("http://127.0.0.1:8080/internal");
 	}
 
-	// ---- reader 路由：file:// → 本地解析（不依赖容器） ----
+	// ---- reader 路由：file:// → 本地文件上传 ----
 
 	@Test
-	void fileUrlDelegatesToLocalParsing() {
-		when(jinaReader.readLocalFile("file:///tmp/doc.md")).thenReturn("# 本地文档");
-		assertThat(callReader("{\"url\":\"file:///tmp/doc.md\"}")).contains("# 本地文档");
-		verify(jinaReader).readLocalFile("file:///tmp/doc.md");
-		verify(jinaReader, never()).readUrl("file:///tmp/doc.md");
+	void fileUrlDelegatesToLocalUpload() {
+		when(jinaReader.isAvailable()).thenReturn(true);
+		when(jinaReader.readLocalFile("file:///tmp/doc.pdf")).thenReturn("# 转换结果");
+		assertThat(callReader("{\"url\":\"file:///tmp/doc.pdf\"}")).contains("# 转换结果");
+		verify(jinaReader).readLocalFile("file:///tmp/doc.pdf");
+		verify(jinaReader, never()).readUrl("file:///tmp/doc.pdf");
 	}
 
 	@Test
 	void unsupportedSchemeRejected() {
+		when(jinaReader.isAvailable()).thenReturn(true);
 		String result = callReader("{\"url\":\"ftp://example.com/x\"}");
 		assertThat(result).contains("不支持的 url scheme");
 		verify(jinaReader, never()).readUrl(org.mockito.ArgumentMatchers.anyString());
@@ -115,6 +118,12 @@ class JinaToolsTest {
 	void blankUrlReturnsHint() {
 		String result = callReader("{\"url\":\"\"}");
 		assertThat(result).contains("需要 url 参数");
+	}
+
+	@Test
+	void disabledSourceReturnsFriendlyMessage() {
+		when(jinaReader.isAvailable()).thenReturn(false);
+		assertThat(callReader("{\"url\":\"https://example.com\"}")).contains("jina 源不可用");
 	}
 
 	/** 直接调用 {@code reader} @Tool 方法（工具类即源：可 new 直接调用测试）。 */
