@@ -41,7 +41,7 @@
 | 术语 | 定义 |
 |---|---|
 | `includes` / `excludes` | URL 查询参数。语义：`includes` 先选（并集），`excludes` 再减。**无 `includes` ≡ `[*]`（全量）；`includes=[]` = 空集（不引入任何工具，无语法糖）**；无 `excludes` ≡ `[]`（不减） |
-| 项 | `includes`/`excludes` 里的元素 = **工具名**（下划线平坦名，如 `bocha_web_search`）。**源名匹配已退役**——要某源全部工具写 `bocha*` |
+| 项 | `includes`/`excludes` 里的元素 = **工具名**（下划线平坦名，如 `bocha_search`）。**源名匹配已退役**——要某源全部工具写 `bocha*` |
 | 通配符 | 工具名支持 `*` 通配：裸 `*`（全量）、`bocha*`（前缀）、`*search`（后缀）、`bo*search`（中间）。**不支持 `?`**；`*` 在 URL query 中合法、无需编码 |
 | 列表形式 | URL 用 `[a,b]` 方括号列表 |
 | 未知项 | 静默忽略 + 日志 warn（`includes=nonexistent` → 空工具集，`listTools` 返回 `[]`，不使连接失败） |

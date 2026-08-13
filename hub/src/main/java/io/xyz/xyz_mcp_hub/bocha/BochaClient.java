@@ -1,7 +1,9 @@
 package io.xyz.xyz_mcp_hub.bocha;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
@@ -15,16 +17,24 @@ import tools.jackson.databind.json.JsonMapper;
  * HTTP API，返回格式化搜索结果文本。
  *
  * <p>零 MCP/Spring AI 依赖（仅用 spring-web 的 {@link RestClient} 与 jackson），可独立复用与测试。
- * 博查 API 文档：{@code POST https://api.bochaai.com/v1/web-search}（网页搜索）与
+ * base-url 由配置键 {@code bocha.url} 注入（默认 {@code https://api.bochaai.com}；官方飞书文档为
+ * {@code api.bocha.cn}，见 {@code BochaConfig}），路径 {@code /v1/web-search}（网页搜索）与
  * {@code /v1/ai-search}（AI 搜索），请求头 {@code Authorization: Bearer <api-key>}。</p>
+ *
+ * <p>忠于官网（#63 能力层）：web 带 {@code summary=true}（长摘要）与 {@code include}/{@code exclude}
+ * 网站范围透传；ai 带 {@code answer=true}（总结答案 + 追问问题）与 {@code include} 透传（AI 无
+ * {@code exclude} 参数，忽略）；count 透传、默认 20；freshness 支持枚举与日期范围。</p>
  */
 public class BochaClient {
 
-	private static final int DEFAULT_COUNT = 10;
+	private static final int DEFAULT_COUNT = 20;
 	private static final int MAX_COUNT = 50;
 	private static final String DEFAULT_FRESHNESS = "noLimit";
 	private static final List<String> FRESHNESS_VALUES = List.of(
 			"noLimit", "oneDay", "oneWeek", "oneMonth", "oneYear");
+	/** 官网 freshness 日期范围/指定日期格式（YYYY-MM-DD..YYYY-MM-DD 或 YYYY-MM-DD）。 */
+	private static final Pattern FRESHNESS_DATE_RANGE = Pattern.compile(
+			"\\d{4}-\\d{2}-\\d{2}(\\.\\.\\d{4}-\\d{2}-\\d{2})?");
 
 	private final RestClient restClient;
 	private final JsonMapper jsonMapper = JsonMapper.builder().build();
@@ -33,28 +43,55 @@ public class BochaClient {
 		this.restClient = restClient;
 	}
 
-	/** 网页搜索：从全网检索网页结果，返回标题、链接、站点与摘要。 */
-	public String webSearch(String query, Integer count, String freshness) {
-		return search("web-search", query, count, freshness);
+	/**
+	 * 网页搜索（type=web）：从全网检索网页结果，返回标题、链接、站点与长摘要。
+	 *
+	 * @param query 搜索关键词
+	 * @param count 返回条数上限（null → 20，clamp 1..50）
+	 * @param freshness 时效范围（枚举或日期范围，null → noLimit）
+	 * @param include 限定网站范围（域名用 | 或 , 分隔，最多 100 个；null 不传）
+	 * @param exclude 排除网站范围（同上；null 不传）
+	 */
+	public String webSearch(String query, Integer count, String freshness, String include, String exclude) {
+		return search("web-search", query, count, freshness, include, exclude, true, null);
 	}
 
-	/** AI 搜索：在全网搜索基础上返回 AI 总结答案与参考源，适合需要综述回答的场景。 */
-	public String aiSearch(String query, Integer count, String freshness) {
-		return search("ai-search", query, count, freshness);
+	/**
+	 * AI 搜索（type=ai）：在全网搜索基础上返回 AI 总结答案、追问问题、参考来源与结构化模态卡。
+	 *
+	 * @param query 搜索关键词
+	 * @param count 返回条数上限（null → 20，clamp 1..50）
+	 * @param freshness 时效范围（枚举或日期范围，null → noLimit）
+	 * @param include 限定网站范围（域名用 | 或 , 分隔，最多 100 个；null 不传。AI 无 exclude 参数）
+	 */
+	public String aiSearch(String query, Integer count, String freshness, String include) {
+		return search("ai-search", query, count, freshness, include, null, null, true);
 	}
 
-	private String search(String endpoint, String query, Integer count, String freshness) {
+	private String search(String endpoint, String query, Integer count, String freshness,
+			String include, String exclude, Boolean summary, Boolean answer) {
 		if (query == null || query.isBlank()) {
 			return "请提供搜索关键词 query。";
 		}
 		int n = count == null ? DEFAULT_COUNT : Math.max(1, Math.min(count, MAX_COUNT));
-		String fresh = (freshness == null || freshness.isBlank() || !FRESHNESS_VALUES.contains(freshness))
-			? DEFAULT_FRESHNESS
-			: freshness;
+		String fresh = normalizeFreshness(freshness);
 
-		Map<String, Object> requestBody = "ai-search".equals(endpoint)
-			? Map.of("query", query, "count", n, "freshness", fresh)
-			: Map.of("query", query, "count", n, "freshness", fresh, "summary", true);
+		Map<String, Object> requestBody = new LinkedHashMap<>();
+		requestBody.put("query", query);
+		requestBody.put("count", n);
+		requestBody.put("freshness", fresh);
+		if (Boolean.TRUE.equals(summary)) {
+			requestBody.put("summary", true);
+		}
+		if (Boolean.TRUE.equals(answer)) {
+			requestBody.put("answer", true);
+		}
+		if (include != null && !include.isBlank()) {
+			requestBody.put("include", include);
+		}
+		if (exclude != null && !exclude.isBlank()) {
+			requestBody.put("exclude", exclude);
+		}
 
 		String requestJson;
 		try {
@@ -71,6 +108,17 @@ public class BochaClient {
 			.body(String.class);
 
 		return formatResponse(endpoint, responseBody);
+	}
+
+	/** freshness：枚举原样透传；日期范围/指定日期透传；空或未知 → noLimit。 */
+	private String normalizeFreshness(String freshness) {
+		if (freshness == null || freshness.isBlank()) {
+			return DEFAULT_FRESHNESS;
+		}
+		if (FRESHNESS_VALUES.contains(freshness) || FRESHNESS_DATE_RANGE.matcher(freshness).matches()) {
+			return freshness;
+		}
+		return DEFAULT_FRESHNESS;
 	}
 
 	private String formatResponse(String endpoint, String responseBody) {
@@ -105,11 +153,16 @@ public class BochaClient {
 
 	/**
 	 * ai-search 响应结构：顶层 {@code messages[]}。{@code type=answer} 的消息 content 为纯文本
-	 * AI 总结；{@code type=source, content_type=webpage} 的消息 content 为内嵌 JSON 字符串，
-	 * 含 {@code value[]} 网页列表（字段与 web-search 的 webPages.value 一致）。
+	 * AI 总结；{@code type=source} 的 content 为 JSON encode 字符串——{@code content_type=webpage}
+	 * 含 {@code value[]} 网页列表（字段与 web-search 的 webPages.value 一致）；其余 content_type 均为
+	 * **模态卡**（多模态参考源，已知 weather_china / baike_pro / medical_common / douyin / calendar /
+	 * train_line 等，官网仍在扩展），content 为 JSON 数组字符串、数组项含 {@code modelCard} 结构化卡
+	 * （JSON 原样返回）；{@code type=follow_up} 的消息 content 为 JSON 数组字符串（追问问题列表）。
+	 * 模态卡不设白名单——非 webpage 的 source 一律尝试解析 modelCard，新增卡类型不静默丢弃。
 	 */
 	private void appendAiSearch(StringBuilder sb, JsonNode root) {
-		for (JsonNode message : root.path("messages")) {
+		JsonNode messages = root.path("messages");
+		for (JsonNode message : messages) {
 			String type = message.path("type").asText("");
 			String content = message.path("content").asText("");
 			if ("answer".equals(type) && !content.isBlank()) {
@@ -117,19 +170,75 @@ public class BochaClient {
 				break;
 			}
 		}
-		for (JsonNode message : root.path("messages")) {
+		for (JsonNode message : messages) {
 			String type = message.path("type").asText("");
 			String contentType = message.path("content_type").asText("");
 			String content = message.path("content").asText("");
-			if ("source".equals(type) && "webpage".equals(contentType) && !content.isBlank()) {
+			if (!"source".equals(type) || content.isBlank()) {
+				continue;
+			}
+			if ("webpage".equals(contentType)) {
 				try {
 					appendPages(sb, jsonMapper.readTree(content).path("value"));
 				}
 				catch (JacksonException ignored) {
 					// 单条 source 解析失败时忽略，继续后续消息
 				}
+			}
+			else {
+				// 模态卡（weather_china/baike_pro/…，含未来新增类型）：content 为 JSON 数组、数组项含
+				// modelCard。白名单外类型也尝试解析，不静默丢弃新增卡；无 modelCard 时自然跳过
+				appendModelCard(sb, contentType, content);
+			}
+		}
+		for (JsonNode message : messages) {
+			String type = message.path("type").asText("");
+			String content = message.path("content").asText("");
+			if ("follow_up".equals(type) && !content.isBlank()) {
+				appendFollowUp(sb, content);
 				break;
 			}
+		}
+	}
+
+	/**
+	 * 模态卡：content 为 JSON 数组字符串，数组项含 {@code modelCard} 字段——结构化 JSON 原样返回
+	 * （#63 决策 7：最终由 LLM 消费，JSON 紧凑保真，不转自然语言）。
+	 */
+	private void appendModelCard(StringBuilder sb, String contentType, String content) {
+		try {
+			JsonNode array = jsonMapper.readTree(content);
+			for (JsonNode item : array.isArray() ? array : array.path("value")) {
+				JsonNode card = item.path("modelCard");
+				if (!card.isMissingNode() && !card.isNull()) {
+					sb.append("模态卡 · ").append(contentType).append("：\n")
+						.append(card.toString()).append('\n');
+				}
+			}
+		}
+		catch (JacksonException ignored) {
+			// 单条模态卡解析失败时忽略，继续后续消息
+		}
+	}
+
+	/** 追问问题：content 为 JSON 数组字符串，呈现为问题列表。 */
+	private void appendFollowUp(StringBuilder sb, String content) {
+		try {
+			JsonNode array = jsonMapper.readTree(content);
+			if (!array.isArray() || array.isEmpty()) {
+				return;
+			}
+			sb.append("追问问题：\n");
+			int i = 1;
+			for (JsonNode question : array) {
+				String text = question.isTextual() ? question.asText() : question.toString();
+				if (!text.isBlank()) {
+					sb.append(i++).append(". ").append(text).append('\n');
+				}
+			}
+		}
+		catch (JacksonException ignored) {
+			// 追问问题解析失败时忽略
 		}
 	}
 

@@ -28,7 +28,9 @@ vaadin:
   url-mapping: /ui/*
 
 bocha:
-  base-url: https://api.bochaai.com
+  # 博查 API base-url（#63 决策 10 抽象为配置）：默认取现状正在使用的 api.bochaai.com；官方飞书文档
+  # 写的是 api.bocha.cn（https://api.bocha.cn/v1/web-search、/v1/ai-search），切换域名只改配置不改代码
+  url: https://api.bochaai.com
   # 敏感值由环境变量或 application-local.yml 注入（见 ADR-0005 二次修订）；缺省为空，源未启用
   # （已注册、目录列出 enabled=false、工具为空，#50 注册/启用分离）
   api-key: ${BOCHA_API_KEY:}

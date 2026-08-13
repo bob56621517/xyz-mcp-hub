@@ -26,22 +26,28 @@ public class BochaRealApiSmoke {
 		}
 
 		RestClient client = RestClient.builder()
-			.baseUrl("https://api.bochaai.com")
+			.baseUrl(baseUrl())
 			.defaultHeader("Authorization", "Bearer " + key)
 			.build();
 		BochaTools tools = new BochaTools(new BochaClient(client), key);
 
-		System.out.println("[2/3] 调用 web_search(\"Spring Boot\", 3, \"noLimit\")");
-		String web = tools.webSearch("Spring Boot", 3, "noLimit");
+		System.out.println("[2/3] 调用 search(type=\"web\", \"Spring Boot\", 3, \"noLimit\")");
+		String web = tools.search("web", "Spring Boot", 3, "noLimit", null, null);
 		System.out.println("      结果：\n" + truncate(web, 500));
 
-		System.out.println("[3/3] 调用 ai_search(\"Spring Boot\", 3, \"noLimit\")");
-		String ai = tools.aiSearch("Spring Boot", 3, "noLimit");
+		System.out.println("[3/3] 调用 search(type=\"ai\", \"Spring Boot\", 3, \"noLimit\")");
+		String ai = tools.search("ai", "Spring Boot", 3, "noLimit", null, null);
 		System.out.println("      结果：\n" + truncate(ai, 500));
 
 		boolean ok = !web.isBlank() && !ai.isBlank()
 				&& !web.contains("博查搜索失败") && !ai.contains("博查搜索失败");
 		System.out.println("结论：" + (ok ? "通过（结果合理）" : "未通过（见上方输出）"));
+	}
+
+	/** 冒烟 base-url：env 优先（BOCHA_URL），缺省 api.bochaai.com（与 Spring 配置 bocha.url 默认一致）。 */
+	private static String baseUrl() {
+		String env = System.getenv("BOCHA_URL");
+		return env != null && !env.isBlank() ? env : "https://api.bochaai.com";
 	}
 
 	private static String truncate(String s, int max) {

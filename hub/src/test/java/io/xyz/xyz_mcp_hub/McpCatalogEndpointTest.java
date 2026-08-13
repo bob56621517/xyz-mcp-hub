@@ -69,7 +69,7 @@ class McpCatalogEndpointTest {
 		mockApi.createContext("/v1/web-search", exchange -> respond(exchange, WEB_SEARCH_RESPONSE));
 		mockApi.createContext("/v1/ai-search", exchange -> respond(exchange, AI_SEARCH_RESPONSE));
 		mockApi.start();
-		registry.add("bocha.base-url", () -> "http://localhost:" + mockApi.getAddress().getPort());
+		registry.add("bocha.url", () -> "http://localhost:" + mockApi.getAddress().getPort());
 		// bocha：opt-in 源，测试自给 mock key → enabled=true
 		registry.add("bocha.api-key", () -> "test-key");
 		// #52 配置驱动：完整 mcp.proxies 列表（app-props 已置空，须显式提供全部条目，源集冻结）。
@@ -177,7 +177,8 @@ class McpCatalogEndpointTest {
 	@Test
 	void bochaToolsArePrefixedAndSorted() throws Exception {
 		JsonNode bocha = sourceByName(fetchCatalog().get("sources"), "bocha");
-		assertThat(toolNames(bocha)).containsExactly("bocha_ai_search", "bocha_web_search");
+		// #63 单 search 工具：目录列出 bocha_search
+		assertThat(toolNames(bocha)).containsExactly("bocha_search");
 	}
 
 	@Test
