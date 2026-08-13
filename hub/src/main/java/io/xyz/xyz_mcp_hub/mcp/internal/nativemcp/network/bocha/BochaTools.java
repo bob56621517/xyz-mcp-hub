@@ -2,7 +2,10 @@ package io.xyz.xyz_mcp_hub.mcp.internal.nativemcp.network.bocha;
 
 import java.util.List;
 
+import io.xyz.xyz_mcp_hub.bocha.AiSearchResult;
 import io.xyz.xyz_mcp_hub.bocha.BochaClient;
+import io.xyz.xyz_mcp_hub.bocha.ModalCard;
+import io.xyz.xyz_mcp_hub.bocha.WebPage;
 import io.xyz.xyz_mcp_hub.mcp.McpEndpointProvider;
 import io.xyz.xyz_mcp_hub.mcp.Scope;
 import org.springframework.ai.tool.ToolCallback;
@@ -19,9 +22,12 @@ import org.springframework.stereotype.Component;
  *
  * <p>工具层（AI 习惯层，#63）：原 web_search / ai_search 两个工具**合成为一个 {@code search} 工具**
  * （暴露名 {@code bocha_search}，逻辑名 {@code search}，源注册表加 {@code bocha_} 前缀）。{@code type}
- * 默认 {@code "ai"} 路由 AI 语义搜索（一次答对），需要深度/多角度/枚举/指定网站时显式
- * {@code type="web"}。官网复杂度（count 默认 20、summary/answer 内部策略化）在此消化，描述文案引导
- * 模型按默认走 AI 语义搜索。</p>
+ * 默认 {@code "ai"} 路由 AI 语义搜索（一次答对），需要排除特定网站或只要裸网页列表时显式
+ * {@code type="web"}。</p>
+ *
+ * <p>本类消化「怎么用 API」的策略（#63 决策 9）：{@code summary}/{@code answer} 真值、{@code count}
+ * 默认 20、{@code freshness} 默认 noLimit 在此预设后传给能力层；把能力层返回的 VO 格式化为模型友好
+ * 文本；能力层异常（query 空/API 非 200/解析失败）catch 后返回友好错误文本。</p>
  *
  * <p>源：name=bocha，scope=NETWORK，type 默认 NATIVE（包装 HTTP API）。缺少 {@code bocha.api-key} 时
  * {@link #isEnabled()} 返回 {@code false}（源仍已注册、目录列出 enabled=false、工具为空，#50）。</p>
@@ -29,10 +35,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class BochaTools implements McpEndpointProvider {
 
-	/** 工具层消化官网复杂度（#63 决策 9）：count 默认 20（#63 §4.2 饱和点）。 */
+	/** 工具层消化默认值（#63 决策 9）：count 默认 20（#63 §4.2 饱和点）。 */
 	private static final int DEFAULT_COUNT = 20;
 
-	/** 工具层消化官网复杂度（#63 决策 9）：freshness 默认 noLimit。 */
+	/** 工具层消化默认值（#63 决策 9）：freshness 默认 noLimit。 */
 	private static final String DEFAULT_FRESHNESS = "noLimit";
 
 	private final BochaClient bochaClient;
@@ -84,11 +90,72 @@ public class BochaTools implements McpEndpointProvider {
 		// 工具层消化默认值（#63 决策 9）：count 缺省 20、freshness 缺省 noLimit，再透传能力层
 		int n = count == null ? DEFAULT_COUNT : count;
 		String fresh = (freshness == null || freshness.isBlank()) ? DEFAULT_FRESHNESS : freshness;
-		if ("web".equalsIgnoreCase(type)) {
-			return bochaClient.webSearch(query, n, fresh, include, exclude);
+		try {
+			if ("web".equalsIgnoreCase(type)) {
+				return formatWeb(bochaClient.webSearch(query, n, fresh, true, include, exclude));
+			}
+			// 默认 ai；AI 无 exclude 参数（官网缺口），忽略 exclude
+			return formatAi(bochaClient.aiSearch(query, n, fresh, true, include));
+		} catch (IllegalStateException e) {
+			return e.getMessage();
 		}
-		// 默认 ai；AI 无 exclude 参数（官网缺口），忽略 exclude
-		return bochaClient.aiSearch(query, n, fresh, include);
+	}
+
+	// ---- VO → 模型友好文本 ----
+
+	private String formatWeb(List<WebPage> pages) {
+		StringBuilder sb = new StringBuilder();
+		appendPages(sb, pages);
+		if (sb.isEmpty()) {
+			return "未找到相关结果。";
+		}
+		return sb.toString().stripTrailing();
+	}
+
+	private String formatAi(AiSearchResult result) {
+		StringBuilder sb = new StringBuilder();
+		if (result.summary() != null && !result.summary().isBlank()) {
+			sb.append("AI 总结：").append(result.summary()).append("\n\n");
+		}
+		for (ModalCard card : result.modalCards()) {
+			sb.append("模态卡 · ").append(card.contentType()).append("：\n")
+				.append(card.modelCardJson()).append('\n');
+		}
+		appendPages(sb, result.pages());
+		if (!result.followUpQuestions().isEmpty()) {
+			sb.append("追问问题：\n");
+			int i = 1;
+			for (String question : result.followUpQuestions()) {
+				sb.append(i++).append(". ").append(question).append('\n');
+			}
+		}
+		if (sb.isEmpty()) {
+			return "未找到相关结果。";
+		}
+		return sb.toString().stripTrailing();
+	}
+
+	private void appendPages(StringBuilder sb, List<WebPage> pages) {
+		if (pages == null || pages.isEmpty()) {
+			return;
+		}
+		int i = 1;
+		for (WebPage page : pages) {
+			sb.append(i++).append(". ");
+			if (!page.name().isBlank()) {
+				sb.append(page.name());
+			}
+			if (!page.url().isBlank()) {
+				sb.append("(").append(page.url()).append(")");
+			}
+			if (!page.siteName().isBlank()) {
+				sb.append(" [").append(page.siteName()).append("]");
+			}
+			sb.append('\n');
+			if (!page.snippet().isBlank()) {
+				sb.append("   ").append(page.snippet()).append('\n');
+			}
+		}
 	}
 
 }

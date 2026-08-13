@@ -7,14 +7,15 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
- * bocha 顶级模块能力测试（#53，S1 能力层；#63 能力层忠于官网）：用 MockRestServiceServer 模拟博查
- * HTTP API，验证 {@link BochaClient} 的请求体参数透传（count/freshness 默认、include/exclude、
- * summary/answer 策略）与结果格式化（网页/总结/模态卡/追问问题，不触网、不经 MCP）。
+ * bocha 顶级模块能力测试（#53，S1 能力层；#63 能力层为纯 API 封装）：用 MockRestServiceServer 模拟博查
+ * HTTP API，验证 {@link BochaClient} 的请求体参数透传（count/freshness/summary/answer/include/exclude）
+ * 与响应解析为 VO（网页/总结/模态卡/追问问题），以及失败抛异常。不触网、不经 MCP。
  */
 class BochaClientTest {
 
@@ -30,6 +31,7 @@ class BochaClientTest {
 		          "name": "Spring Boot 官网",
 		          "url": "https://spring.io/projects/spring-boot",
 		          "snippet": "快速构建生产级 Spring 应用。",
+		          "summary": "更长的一段摘要。",
 		          "siteName": "Spring"
 		        }
 		      ]
@@ -59,7 +61,7 @@ class BochaClientTest {
 		}
 		""";
 
-	/** ai 含模态卡（weather_china）与追问问题（follow_up）的响应。 */
+	/** ai 含模态卡（weather_china）与追问问题（follow_up）。 */
 	private static final String AI_MODAL_CARD_JSON = """
 		{
 		  "code": 200,
@@ -104,77 +106,57 @@ class BochaClientTest {
 	}
 
 	@Test
-	void webSearchFormatsResults() {
+	void webSearchParsesPagesIntoVo() {
 		server.expect(requestTo(BASE_URL + "/v1/web-search"))
 			.andRespond(withSuccess(WEB_SEARCH_JSON, MediaType.APPLICATION_JSON));
 
-		String text = client.webSearch("spring boot", 5, "oneMonth", null, null);
-		assertThat(text).contains("Spring Boot 官网");
-		assertThat(text).contains("spring.io/projects/spring-boot");
-		assertThat(text).contains("Spring");
-		assertThat(text).contains("快速构建生产级");
+		var pages = client.webSearch("spring boot", 5, "oneMonth", true, null, null);
+		assertThat(pages).hasSize(1);
+		assertThat(pages.get(0).name()).isEqualTo("Spring Boot 官网");
+		assertThat(pages.get(0).url()).isEqualTo("https://spring.io/projects/spring-boot");
+		assertThat(pages.get(0).snippet()).contains("快速构建生产级");
+		assertThat(pages.get(0).summary()).contains("更长的一段摘要");
+		assertThat(pages.get(0).siteName()).isEqualTo("Spring");
 	}
 
 	@Test
-	void webSearchForwardsIncludeExcludeSummaryAndDefaults() {
-		// 请求体：query/count 默认 20/freshness 默认 noLimit/summary=true/include/exclude 全透传
+	void webSearchForwardsParamsAndSummary() {
+		// 请求体：count/freshness 显式透传、summary=true、include/exclude 全透传
 		server.expect(requestTo(BASE_URL + "/v1/web-search"))
 			.andExpect(content().json("""
-				{"query":"spring boot","count":20,"freshness":"noLimit","summary":true,
+				{"query":"spring boot","count":5,"freshness":"oneMonth","summary":true,
 				 "include":"qq.com|m.163.com","exclude":"baidu.com"}
 				"""))
 			.andRespond(withSuccess(WEB_SEARCH_JSON, MediaType.APPLICATION_JSON));
 
-		client.webSearch("spring boot", null, null, "qq.com|m.163.com", "baidu.com");
+		client.webSearch("spring boot", 5, "oneMonth", true, "qq.com|m.163.com", "baidu.com");
 		server.verify();
 	}
 
 	@Test
-	void aiSearchForwardsIncludeAnswerAndDefaultsWithoutExclude() {
-		// 请求体：query/count/freshness 默认/answer=true/include 透传；AI 无 exclude 参数（能力层无此形参）
-		server.expect(requestTo(BASE_URL + "/v1/ai-search"))
-			.andExpect(content().json("""
-				{"query":"spring boot","count":20,"freshness":"noLimit","answer":true,"include":"qq.com"}
-				"""))
-			.andRespond(withSuccess(AI_SEARCH_JSON, MediaType.APPLICATION_JSON));
-
-		client.aiSearch("spring boot", null, null, "qq.com");
-		server.verify();
-	}
-
-	@Test
-	void explicitCountAndFreshnessAreForwarded() {
+	void webSearchOmitsNullParams() {
+		// count/freshness/include/exclude 为 null、summary=false 时均不传（交官网默认）
 		server.expect(requestTo(BASE_URL + "/v1/web-search"))
 			.andExpect(content().json("""
-				{"query":"spring boot","count":5,"freshness":"2025-01-01..2025-04-06","summary":true}
+				{"query":"spring boot"}
 				"""))
 			.andRespond(withSuccess(WEB_SEARCH_JSON, MediaType.APPLICATION_JSON));
 
-		client.webSearch("spring boot", 5, "2025-01-01..2025-04-06", null, null);
+		client.webSearch("spring boot", null, null, false, null, null);
 		server.verify();
 	}
 
 	@Test
-	void invalidFreshnessFallsBackToNoLimit() {
-		server.expect(requestTo(BASE_URL + "/v1/web-search"))
-			.andExpect(content().json("""
-				{"query":"spring boot","count":20,"freshness":"noLimit","summary":true}
-				"""))
-			.andRespond(withSuccess(WEB_SEARCH_JSON, MediaType.APPLICATION_JSON));
-
-		client.webSearch("spring boot", null, "lastWeek", null, null);
-		server.verify();
-	}
-
-	@Test
-	void aiSearchIncludesSummary() {
+	void aiSearchParsesSummaryPagesIntoVo() {
 		server.expect(requestTo(BASE_URL + "/v1/ai-search"))
 			.andRespond(withSuccess(AI_SEARCH_JSON, MediaType.APPLICATION_JSON));
 
-		String text = client.aiSearch("spring boot", null, null, null);
-		assertThat(text).contains("AI 总结");
-		assertThat(text).contains("流行的 Java 微服务框架");
-		assertThat(text).contains("Spring Boot 官网");
+		var result = client.aiSearch("spring boot", null, null, true, null);
+		assertThat(result.summary()).contains("流行的 Java 微服务框架");
+		assertThat(result.pages()).hasSize(1);
+		assertThat(result.pages().get(0).name()).isEqualTo("Spring Boot 官网");
+		assertThat(result.modalCards()).isEmpty();
+		assertThat(result.followUpQuestions()).isEmpty();
 	}
 
 	@Test
@@ -182,44 +164,60 @@ class BochaClientTest {
 		server.expect(requestTo(BASE_URL + "/v1/ai-search"))
 			.andRespond(withSuccess(AI_MODAL_CARD_JSON, MediaType.APPLICATION_JSON));
 
-		String text = client.aiSearch("杭州天气", 5, "oneDay", "weather.example.com");
-		// AI 总结
-		assertThat(text).contains("AI 总结");
-		assertThat(text).contains("杭州今日晴");
-		// 模态卡：结构化 JSON 原样返回（JSON 紧凑保真，不转自然语言）
-		assertThat(text).contains("模态卡 · weather_china");
-		assertThat(text).contains("\"city\":\"杭州\"");
-		assertThat(text).contains("\"humidity\":\"40%\"");
-		// 网页参考源
-		assertThat(text).contains("杭州天气网");
-		// 追问问题列表
-		assertThat(text).contains("追问问题");
-		assertThat(text).contains("1. 杭州明天天气如何？");
-		assertThat(text).contains("2. 杭州未来一周天气趋势？");
+		var result = client.aiSearch("杭州天气", 5, "oneDay", true, "weather.example.com");
+		assertThat(result.summary()).contains("杭州今日晴");
+		// 模态卡：结构化 JSON 原样保留（紧凑保真，不转自然语言）
+		assertThat(result.modalCards()).hasSize(1);
+		ModalCard card = result.modalCards().get(0);
+		assertThat(card.contentType()).isEqualTo("weather_china");
+		assertThat(card.modelCardJson()).contains("\"city\":\"杭州\"").contains("\"humidity\":\"40%\"");
+		// 网页参考源 + 追问问题
+		assertThat(result.pages()).hasSize(1);
+		assertThat(result.pages().get(0).name()).isEqualTo("杭州天气网");
+		assertThat(result.followUpQuestions()).containsExactly("杭州明天天气如何？", "杭州未来一周天气趋势？");
 	}
 
 	@Test
-	void nonSuccessCodeReturnsErrorText() {
+	void aiSearchForwardsAnswerAndInclude() {
+		server.expect(requestTo(BASE_URL + "/v1/ai-search"))
+			.andExpect(content().json("""
+				{"query":"spring boot","answer":true,"include":"qq.com"}
+				"""))
+			.andRespond(withSuccess(AI_SEARCH_JSON, MediaType.APPLICATION_JSON));
+
+		client.aiSearch("spring boot", null, null, true, "qq.com");
+		server.verify();
+	}
+
+	@Test
+	void nonSuccessCodeThrows() {
 		server.expect(requestTo(BASE_URL + "/v1/web-search"))
 			.andRespond(withSuccess("""
 				{"code": 401, "msg": "unauthorized"}
 				""", MediaType.APPLICATION_JSON));
 
-		String text = client.webSearch("spring boot", null, null, null, null);
-		assertThat(text).contains("博查搜索失败");
-		assertThat(text).contains("401");
-		assertThat(text).contains("unauthorized");
+		assertThatThrownBy(() -> client.webSearch("spring boot", null, null, true, null, null))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("401")
+			.hasMessageContaining("unauthorized");
 	}
 
 	@Test
-	void emptyResultReturnsNotice() {
+	void emptyResultReturnsEmptyList() {
 		server.expect(requestTo(BASE_URL + "/v1/web-search"))
 			.andRespond(withSuccess("""
 				{"code": 200, "data": {"webPages": {"value": []}}}
 				""", MediaType.APPLICATION_JSON));
 
-		String text = client.webSearch("nothing", null, null, null, null);
-		assertThat(text).contains("未找到相关结果");
+		var pages = client.webSearch("nothing", null, null, true, null, null);
+		assertThat(pages).isEmpty();
+	}
+
+	@Test
+	void blankQueryThrows() {
+		assertThatThrownBy(() -> client.webSearch("  ", null, null, true, null, null))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("query");
 	}
 
 }

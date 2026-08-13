@@ -14,6 +14,18 @@ bocha 源原来暴露 `web_search` / `ai_search` 两个工具，参数与描述�
 
 另：base-url 此前写死在 `BochaConfig` 默认值，官方飞书文档接口域名（`api.bocha.cn`）与现状在用的 `api.bochaai.com` 不一致，切换域名需改代码。
 
+## 实测依据（2026-08-13，真实 API 调用，补飞书文档缺漏）
+
+飞书文档对 AI Search **返回结构**描述不全、且有误导，以下为真实调用（`api.bochaai.com`，同 query「杭州天气」）确认的行为：
+
+- **AI Search 请求体带 `exclude` 被静默忽略**：code 200 正常返回，但被排除域名（`qq.com|bocha.cn`）的结果**仍返回**。即 AI 端 exclude **不生效也不报错**（区别于不认识参数报 400）。→「exclude 在 AI 端缺口」成立。
+- **AI Search 请求体带 `summary:false` 被静默忽略**：code 200，返回的网页 source **每条仍带 `summary` 字段**，与不带 `summary` 完全一致。AI 侧 `summary` 参数无意义（无对应开关）。
+- **AI Search 的网页 source（`type=source, content_type=webpage`）字段与 web 的 `webPages.value` 完全一致**：`name/url/snippet/summary/siteName/siteIcon/datePublished/dateLastCrawled` 均有。即「web 有长摘要、ai 没有」是**错误认知**——两者网页来源数据结构相同。
+- **AI Search 额外返回**：`type=answer`（大模型总结）、`type=follow_up`（追问问题，JSON 数组字符串）、模态卡 `source`（如 `weather_china`）、`conversation_id`。
+- **web 的 `exclude` 真实生效**（qq.com 被排除）；但 `bocha.cn` 未被排除，疑似精确域名匹配而非子域包含，未深入验证。
+
+结论：除 `exclude`（AI 无）与「仅要裸网页列表、不需模型总结」场景外，**AI Search 一次调用覆盖 web 全部能力并额外返回总结/追问/模态卡**，是默认最优解；其 `answer` 总结可作为模型自主汇总的辅助素材（骨架+参考视角），网页来源仍是溯源依据。
+
 ## 决策
 
 把 bocha 重构为**两层**，并把 base-url 抽象为配置：
@@ -27,13 +39,13 @@ bocha 源原来暴露 `web_search` / `ai_search` 两个工具，参数与描述�
 
 - `type` 默认 `"ai"` → AI Search（内部 `answer=true`，返回总结答案 + 追问问题 + 参考来源 + 模态卡）。
 - `type="web"` → Web Search（内部 `summary=true` 长摘要，返回网页列表）。
-- 描述文案引导模型：默认走 AI 语义搜索（一次答对），深度/多角度/枚举/指定网站时显式 `type="web"`。
+- 描述文案引导模型：默认走 AI 语义搜索（一次答对）。实测 web/ai 网页来源字段相同，web 的独特价值是 **`exclude` 排除网站**（AI 端 exclude 被忽略）——需要排除特定网站或只要裸网页列表（不需模型总结）时显式 `type="web"`。
 
 ### 参数消化
 
 - `count`：语义 = **返回条数上限**，默认 **20**（#63 §4.2 饱和点），clamp 1..50，统一按 type 透传（web 亦透传）。
-- `include`/`exclude`：**API 有则支持、没有则忽略**，不做本地过滤。web 全透传；ai 仅 `include` 透传、`exclude` 忽略（官网 AI Search 无 `exclude` 参数）。
-- `summary`/`answer`/`stream` 不暴露：`summary` 内部按 type 策略化（web=true / ai=false）；ai 内部 `answer=true`；非流式（`stream=false`）足够。
+- `include`/`exclude`：**API 有则支持、没有则忽略**，不做本地过滤。web 全透传；ai 仅 `include` 透传、`exclude` 不传（实测 AI 接受 exclude 但静默忽略，不传更干净）。
+- `summary`/`answer`/`stream` 不暴露：web 内部 `summary=true`（长摘要）；ai 内部 `answer=true`（总结+追问），ai 侧 `summary` 参数实测被忽略、不传；非流式（`stream=false`）足够。
 - `freshness`：支持枚举（noLimit/oneDay/oneWeek/oneMonth/oneYear）与日期范围（`YYYY-MM-DD..YYYY-MM-DD`），默认 noLimit。
 
 ### 模态卡与追问问题
