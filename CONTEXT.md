@@ -2,9 +2,9 @@
 
 ## 项目定位
 
-**MCP 聚合门面（MCP Hub）**。对外暴露一个统一的 MCP 入口，内部通过四种方式（Native / Proxy / Container / Host）整合各类 MCP 工具；工具子集由**连接 URL 参数**在运行时选择，解决「全量注册导致的 Token 浪费」问题。
+**MCP 聚合门面（MCP Hub）**。对外暴露一个统一的 MCP 入口，内部通过三种方式（Native / Proxy / Host）整合各类 MCP 工具（`container` 型已溶解——容器只是 compose 部署细节，见 ADR-0016）；工具子集由**连接 URL 参数**在运行时选择，解决「全量注册导致的 Token 浪费」问题。
 
-> 架构方向变更见 `REFACTOR-HANDOFF.md` 与 `docs/adr/0009~0012`（docker 运行时化 + 单端点收敛）。
+> 架构方向变更见 `REFACTOR-HANDOFF.md`、`docs/adr/0009~0012`（docker 运行时化 + 单端点收敛）与 `docs/adr/0016`（compose 部署 + docker 模块退役）。
 
 ## 领域词汇表
 
@@ -13,27 +13,29 @@
 | 术语 | 英文 | 定义 |
 |---|---|---|
 | MCP Hub | MCP Hub | 本项目的本体。对外暴露统一 MCP 入口，内部聚合并管理各类 MCP 服务 |
-| 源 | Source | 目录里一个可被 `includes`/`excludes` 引用的工具组。**两个正交状态**：已注册（声明存在——本地工具类 / 配置 proxy / 容器，由代码或配置固定）与 启用（`isEnabled()` 门控：key/token/docker 可用才 true）。目录列出所有已注册源并标 `enabled`；未启用源工具为空 |
+| 源 | Source | 目录里一个可被 `includes`/`excludes` 引用的工具组。**两个正交状态**：已注册（声明存在——本地工具类 / 配置 proxy / 端点配置，由代码或配置固定）与 启用（`isEnabled()` 门控：key/token/端点可用才 true）。目录列出所有已注册源并标 `enabled`；未启用源工具为空 |
 | 工具类即源 | Tools as source | #53：本地工具类（`BochaTools`/`PlaywrightTools`/`JinaTools`）**本身实现** `McpEndpointProvider`——`@Tool` 方法 + 源元数据（name/scope/type/protocol/enabled）合一，`new` 即可直接调用测试；纯能力在顶级模块（`BochaClient`/`WebSessionRegistry`/`JinaReader`），MCP 层不再有 `XxxMcpProvider` 包装类 |
 | 工具视图 | Tool View | 一次 MCP 连接按 URL 参数解析出的工具子集。**工具永远注册在源里**，`listTools` 返回过滤后的视图给 agent |
-| 目录 | Catalog | `GET /xyz-hub/catalog`，机器可读的「源 + 工具」清单。每个源带 `name` / `type`（native/proxy/container，host 并入 native 靠 scope 区分）/ `scope` / `enabled` / `tools`。数据三源汇合：本地工具类声明 / 配置 proxy 启动发现 / 容器静态冒烟 |
-| 清单 | Manifest | `manifests/mcp-images.yaml`（mvn 生成的构建产物）。`ContainerMcp` 按需启动容器的运行规范（`image`/`protocol`/`port`/`hostPort`；`port`=容器内端口、`hostPort`=宿主映射端口 5 位数） |
+| 目录 | Catalog | `GET /xyz-hub/catalog`，机器可读的「源 + 工具」清单。每个源带 `name` / `type`（native/proxy，host 并入 native 靠 scope 区分）/ `scope` / `enabled` / `tools`。数据两源汇合：本地工具类声明 / 配置 proxy 启动发现（容器静态冒烟已随 markitdown 退役，ADR-0016） |
+| 清单 | Manifest | **已退役（ADR-0016）**。`manifests/mcp-images.yaml` 曾是 ContainerMcp 按需启动容器的运行规范；docker 模块退役后由 compose 承担部署，无此产物 |
+| `file://` 坐标系 | file:// | MCP 的 `file://` 由服务端（hub）解释，统一 = **hub 宿主文件系统**（hub 永不进容器，ADR-0016）。jina 本地文件 = hub 读宿主文件 → multipart 上传 → md |
 
-### MCP 实现类型（四类）
+### MCP 实现类型（三类）
 
 | 术语 | 英文 | 定义 |
 |---|---|---|
-| 原生 MCP | NativeMcp | 在 Hub JVM 内**薄实现**：包装 HTTP API（如 bocha）或官方 SDK。遵循薄实现原则，不重造引擎 |
-| 代理 MCP | ProxyMcp | 透明转发**公有云** HTTP MCP Server。仅支持远程 HTTP（Streamable HTTP），不用 stdio 子进程；认证字段经配置注入固定 header；工具清单**启动时发现**（上游不受控） |
-| 容器 MCP | ContainerMcp | 从本地 docker 按需拉起容器（本地无则按清单 pull）再接入。`ContainerSpec.protocol` 分两类：`mcp`（转发容器内 MCP 工具，如 markitdown-mcp）、`rest`（JVM 薄包装容器 REST API，如 jina） |
+| 原生 MCP | NativeMcp | 在 Hub JVM 内**薄实现**：包装 HTTP API（bocha / **jina**——端点配置化，本地文件走 multipart 上传）或官方 SDK。遵循薄实现原则，不重造引擎 |
+| 代理 MCP | ProxyMcp | 透明转发 HTTP MCP Server（公有云或自部署）。仅支持远程 HTTP（Streamable HTTP），不用 stdio 子进程；认证字段经配置注入固定 header；工具清单**启动时发现**（上游不受控） |
 | 主机 MCP | HostMcp | 必须部署在 Agent/CLI 同宿主的 MCP（文件、宿主程序如 IM、真实浏览器交互）。**薄实现原则的例外**：可承载真引擎（如 playwright 非无头改页面注入翻译），但仍以官方 SDK 调用为主 |
+
+> **`container` 型已溶解（ADR-0016）**：容器只是 compose 部署细节，不再是源类型。markitdown 退役（能力被 jina 收编）；jina 归 native（配置端点 + 薄 HTTP 包装）。
 
 ### 部署范围
 
 | 术语 | 英文 | 定义 |
 |---|---|---|
-| 主机 MCP | HostMcp | 见上。与「容器 MCP」在定义上正交：HostMcp 强调同宿主，ContainerMcp 强调容器 |
-| 网络 MCP | NetworkMcp | 通过网络可达即可，对部署位置无约束。NativeMcp / ProxyMcp / ContainerMcp 均可属于此类 |
+| 主机 MCP | HostMcp | 见上。强调同宿主；与「网络 MCP」正交 |
+| 网络 MCP | NetworkMcp | 通过网络可达即可，对部署位置无约束。NativeMcp / ProxyMcp 均可属于此类 |
 | 范围 | Scope | 枚举：`HOST` / `NETWORK`。记录在 `McpEndpointProvider` 中 |
 
 ### 工具选择语法（URL 与 YAML 一致）
@@ -50,8 +52,8 @@
 
 | 术语 | 定义 |
 |---|---|
-| 薄实现原则 | NativeMcp 一律薄：能力若已有成熟第三方 MCP（或可容器化），就转发/拉容器，绝不在 JVM 重造引擎。本次重构的动因是旧 fetch 违背此原则过度造轮子 |
-| 工具清单来源 | 谁控制变更谁静态：配置 proxy（公有云，不受控）→ 启动时发现；容器 mcp（镜像由我们 pin）→ 静态冒烟；本地工具类/native/host（代码声明）→ 静态 |
+| 薄实现原则 | NativeMcp 一律薄：能力若已有成熟第三方 MCP 或服务，就转发/配置端点，绝不在 JVM 重造引擎。本次重构的动因是旧 fetch 违背此原则过度造轮子 |
+| 工具清单来源 | 谁控制变更谁静态：配置 proxy（不受控）→ 启动时发现；本地工具类/native/host（代码声明）→ 静态（容器 mcp 静态冒烟随 markitdown 退役，ADR-0016） |
 
 ### 任务执行（run-tasks 技能词汇）
 
@@ -82,7 +84,7 @@
 | 术语 | 英文 | 定义 |
 |---|---|---|
 | URL 构建器 🔮 | 无 | `GET /xyz-hub/catalog` 之上的 web 页（勾选源/工具 → 生成 URL 复制）。是否用 Vaadin 实现延后决策 |
-| 分发 #2 🔮 | 无 | 把 hub/sidecar 镜像发布到 Docker Hub 直接使用（暂缓）。前提维护 dockerhub 容器名称清单 |
+| 分发 #2 🔮 | 无 | 把 hub 作为可部署产物分发（暂缓；hub 宿主 `java -jar`，无容器镜像，见 ADR-0016） |
 | 周期性刷新 🔮 | 无 | 配置 proxy 工具清单的 TTL 周期刷新（当前仅启动时发现一次） |
 | 组合源（打回草稿）🔮 | 无 | `mcp.specs` 组合源机制已退役（代码移除，见 ADR-0011 修订）；将来重做时再评估——白名单搜索工具集、URL 快捷参数、github-readonly 定位等（见对应 issue） |
 
@@ -100,10 +102,11 @@
 - `docs/adr/0006-jpms-blocked-upstream.md` — JPMS 暂缓：上游 MCP SDK 非法模块名（issue #3）
 - `docs/adr/0007-proxy-http-only-config-driven.md` — Proxy 转发：仅远程 HTTP、配置驱动（**修订**：yaml `mcp.proxies` + 通用转发器 + hook）
 - `docs/adr/0008-composed-space-config.md` — **已被 ADR-0011 取代**（组合端点 Space → 组合源 + 单端点 URL 参数）
-- `docs/adr/0009-docker-runtime-four-mcp-types.md` — docker 运行时化 + 四类 MCP + 薄实现原则（取代 ADR-0003）
+- `docs/adr/0009-docker-runtime-four-mcp-types.md` — docker 运行时化 + 四类 MCP + 薄实现原则（取代 ADR-0003；**被 ADR-0016 修订**：四类→三类，container 型溶解）
 - `docs/adr/0010-security-ssrf-guard.md` — SSRF 防护：复用 SsrUrlGuard + 容器网络隔离
 - `docs/adr/0011-single-endpoint-url-params-composite-sources.md` — 单端点 + URL 参数选工具 + 目录 API（**修订**：组合源退役打回草稿、URL 通配符语义、目录 enabled/type 收敛）
-- `docs/adr/0012-distribution-multimodule-scope.md` — 分发与仓库结构：多模块 Maven、sidecar 镜像、hub 不进 docker
+- `docs/adr/0012-distribution-multimodule-scope.md` — 分发与仓库结构：多模块 Maven、sidecar 镜像、hub 不进 docker（**被 ADR-0016 修订**：sidecar/manifest/docker 模块退役，部署归 compose）
+- `docs/adr/0016-compose-deployment-hub-on-host.md` — compose 部署 + hub 永不进容器 + docker 模块退役 + 源类型三型收敛
 
 ---
 
@@ -121,33 +124,27 @@ xyz-mcp-hub/
 │       ├── mcp.internal                        ← 以下全部不对外
 │       │   ├── single                          ← 单端点 McpServer + 源注册表 + URL 参数工具视图 + 目录 API（ADR-0011，#30~#39；组合源已退役）
 │       │   ├── proxy                           ← 通用转发器（配置驱动，yaml mcp.proxies）
-│       │   ├── containermcp                    ← ContainerMcp（读 manifest，按需拉起容器；jina rest 型已提升顶级模块，#53）
-│       │   └── nativemcp                       ← 工具类即源与 utils 源（#53：BochaTools/PlaywrightTools 实现 McpEndpointProvider，不再有包装类；HostMcp 预留）
-│       ├── docker                              ← 顶级工具模块：容器生命周期管理 + 容器端点解析（ContainerEndpoint）
+│       │   └── nativemcp                       ← 工具类即源与 utils 源（BochaTools/PlaywrightTools/JinaTools 实现 McpEndpointProvider；HostMcp 预留）
 │       ├── playwright                          ← 顶级工具模块：浏览器引擎 + 会话（WebSessionRegistry）
 │       ├── bocha                               ← 顶级工具模块：bocha 搜索 API（纯能力 BochaClient，#53 提升）
-│       ├── jina                               ← 顶级工具模块：jina 解析 API（纯能力 JinaReader：容器代抓 + file:// 本地解析，#53 提升）
+│       ├── jina                               ← 顶级工具模块：jina 解析 API（纯能力 JinaReader：配置端点代抓 + 本地文件 multipart 上传，ADR-0016）
 │       ├── security                            ← SsrUrlGuard 等共享安全组件
 │       └── ui                                  ← 模块 2（Vaadin 管理界面，延后决策）
-├── sidecars/                   ← 容器化 sidecar（本仓库构建的镜像；playwright 属 HostMcp 本机引擎，不在此）
-│   └── markitdown/             （Dockerfile + pom，mvn install 用 buildx 构建 + 装入本地 docker，#31）
-├── manifests/
-│   └── mcp-images.yaml         ← mvn 生成的构建产物（ContainerMcp 按需启动容器的规范）
-├── compose.yaml                ← 可选：起 hub 的便捷入口（非引擎启动方式）
+├── compose.yml                 ← 引擎部署（ADR-0016）：拉起引擎容器（现仅 jina），暴露 127.0.0.1 端口；hub 以宿主 java -jar 运行，不进 compose
 ├── CONTEXT.md
 └── docs/adr/
 ```
 
-**说明**：`content` 顶级模块已整体退役（旧内容转换引擎，见 ADR-0009）；`fetch` 门面已砍，网页/PDF 直接用 jina。旧多端点（`/mcp/builtin/*`、`/mcp/server/*`、`/mcp/config/*`）与 Space 组合端点已整体移除（issue #39，干净断掉无重定向），仅剩单端点 `/xyz-hub/mcp` + `/xyz-hub/sse` + 目录 `/xyz-hub/catalog`。`(JPMS module-info.java 仍暂缓，见 issue #3)`
+**说明**：`content` 顶级模块已整体退役（旧内容转换引擎，见 ADR-0009）；`fetch` 门面已砍，网页/PDF 直接用 jina。`docker` 顶级模块与 `containermcp` 包整体退役（ADR-0016：部署归 compose、markitdown 被 jina 收编）；`sidecars/`、`manifests/` 不再存在。旧多端点（`/mcp/builtin/*`、`/mcp/server/*`、`/mcp/config/*`）与 Space 组合端点已整体移除（issue #39），仅剩单端点 `/xyz-hub/mcp` + `/xyz-hub/sse` + 目录 `/xyz-hub/catalog`。**部署**：compose 拉起引擎（jina，127.0.0.1 端口），hub 以宿主 `java -jar` 运行（永不进容器，`file://` 语义见 ADR-0016）。`(JPMS module-info.java 仍暂缓，见 issue #3)`
 
 ---
 
 ## 配置约定
 
-- `application.yml` — 主配置（含 `spring.config.import`、`mcp.proxies` 配置 proxy 源列表等）
+- `application.yml` — 主配置（含 `spring.config.import`、`mcp.proxies` 配置 proxy 源列表、`jina.url` 端点配置等）
 - `application-local.yml` — 本地敏感配置（API key/token，`.gitignore` 排除）
 - `spring.profiles.active: local`
-- `manifests/mcp-images.yaml` — mvn 生成的构建产物，`ContainerMcp` 运行期读取
+- **部署（ADR-0016）**：compose 拉起引擎（jina 暴露 127.0.0.1 端口）；hub 宿主 `java -jar`。dev/prod 端点差异走 profile（dev → `127.0.0.1`，prod → compose DNS）
 
 `mcp.proxies`（配置 proxy 源）示例（通用转发器按此建源，#52 消灭逐个 Provider 类；auth-header 留空 → 未启用）：
 
@@ -159,6 +156,13 @@ mcp:
       # 完整认证 header（如 "Authorization: Bearer <token>"，经 GITHUB_AUTH_HEADER 注入）；留空 → 源未启用
       auth-header: "${GITHUB_AUTH_HEADER:}"
       # tools-subset: []   # 可选：固定工具子集
+```
+
+`jina`（native 源，端点配置化，ADR-0016）示例：
+
+```yaml
+jina:
+  url: ${JINA_URL:http://127.0.0.1:18081}   # jina reader 容器/上游端点（dev/prod 走 profile，见 ADR-0016）
 ```
 
 ---
@@ -173,5 +177,5 @@ mcp:
 | Spring Modulith | 2.1.0 | 模块结构验证 |
 | Vaadin | 25.2.5 | 管理 UI（延后决策） |
 | SQLite | — | 运行时数据存储 |
-| Docker | — | 引擎运行时（ContainerMcp / HostMcp） |
+| Docker | — | 引擎运行时（仅 jina 容器，compose 部署，暴露 127.0.0.1，ADR-0016） |
 | JPMS | — | 编译期模块隔离 + jlink 裁剪 JRE（暂缓，上游阻塞，见 issue #3） |

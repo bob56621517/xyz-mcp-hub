@@ -1,5 +1,9 @@
 # 重构交接：docker 运行时化 + 单端点收敛
 
+> ⚠ **已被 ADR-0016 / `docs/specs/deploy-refactor.md` 取代（2026-08-13）**：docker 运行时化方向整体反转——
+> docker 模块退役、markitdown 退役、部署归 compose、hub 永不进容器、源类型三型收敛。本文件以下内容为**历史记录**，
+> 新方向见 `docs/adr/0016-compose-deployment-hub-on-host.md` 与 `docs/specs/deploy-refactor.md`。
+
 > **本交接供未来对话读取**：架构方向与全部共识已定（ADR-0009~0012 + CONTEXT.md），
 > 具体规划与任务拆解**留给新对话做**（本对话只产文档、不写代码、不拆任务）。
 
