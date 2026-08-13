@@ -129,13 +129,24 @@ class BochaToolsTest {
 	@Test
 	void searchToolDescriptionGuidesModel() {
 		BochaTools tools = new BochaTools(bochaClient, "test-key");
-		String description = tools.getTools().get(0).getToolDefinition().description();
-		assertThat(description).contains("联网工具");
-		assertThat(description).contains("AI 语义搜索");
-		assertThat(description).contains("type=\"web\"");
-		assertThat(description).contains("include");
-		assertThat(description).contains("exclude");
-		assertThat(description).contains("超链接");
+		var tool = tools.getTools().get(0).getToolDefinition();
+		// 工具描述聚焦行为引导（不含 count/freshness/include/exclude 取值细节，那些在参数描述）
+		assertThat(tool.description()).contains("联网");
+		assertThat(tool.description()).contains("AI 语义搜索");
+		assertThat(tool.description()).contains("type=\"web\"");
+		assertThat(tool.description()).contains("超链接");
+		assertThat(tool.description()).doesNotContain("noLimit");
+	}
+
+	@Test
+	void searchToolParamDescriptionsCarryValueDetails() {
+		BochaTools tools = new BochaTools(bochaClient, "test-key");
+		String schema = tools.getTools().get(0).getToolDefinition().inputSchema().toString();
+		// 参数描述承载取值/默认/语法细节（经 @ToolParam 注入 inputSchema；JSON schema 序列化时引号转义为 \"）
+		assertThat(schema).contains("noLimit");
+		assertThat(schema).contains("默认 20");
+		assertThat(schema).contains("type=\\\"web\\\" 生效");
+		assertThat(schema).contains("最多 100 个");
 	}
 
 }

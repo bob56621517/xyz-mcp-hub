@@ -72,21 +72,18 @@ public class BochaTools implements McpEndpointProvider {
 	}
 
 	@Tool(name = "search", description = """
-			博查联网搜索，用户主动加入的联网工具。默认（type 缺省为 ai）走 AI 语义搜索：一次调用即返回
-			总结答案、追问问题、参考来源与结构化模态卡（天气/百科/医疗/火车等垂域数据），适合事实问答与
-			综述；需要深度调研、多角度对比、枚举大量条目或指定网站范围时，显式设 type="web" 走网页搜索，
+			用户主动加入的用博查搜索引擎的联网 mcp 工具。默认走 AI 语义搜索（type 缺省为 ai）：除网页来源外
+			额外返回大模型总结答案、追问问题与垂域结构化模态卡（天气/百科/医疗/火车等），适合事实问答、综述、
+			直接引用结构化数据。需要排除特定网站或只要裸网页列表（不需模型总结）时，显式设 type="web"：
 			返回长摘要网页列表，便于多来源交叉验证。
-			count 为返回条数上限（默认 20，最大 50）；freshness 限定时效（noLimit/oneDay/oneWeek/oneMonth/
-			oneYear 或 YYYY-MM-DD..YYYY-MM-DD 日期范围，默认 noLimit）；include/exclude 限定或排除网站
-			范围（域名用 | 或 , 分隔，最多 100 个；exclude 仅 type="web" 生效）。
 			返回的网页来源请在回答末尾把 URL 渲染为超链接附上，便于用户溯源。""")
 	public String search(
-			@ToolParam(required = false, description = "搜索类型：ai（默认，AI 语义搜索，返回总结答案+追问问题+模态卡）或 web（网页搜索，返回长摘要网页列表）") String type,
+			@ToolParam(required = false, description = "搜索类型：ai（默认，AI 语义搜索，返回总结答案+追问问题+模态卡）或 web（网页搜索，长摘要网页列表，支持 exclude）") String type,
 			@ToolParam(description = "搜索关键词") String query,
 			@ToolParam(required = false, description = "返回条数上限，默认 20，最大 50") Integer count,
-			@ToolParam(required = false, description = "时效范围：noLimit/oneDay/oneWeek/oneMonth/oneYear 或 YYYY-MM-DD..YYYY-MM-DD，默认 noLimit") String freshness,
-			@ToolParam(required = false, description = "限定网站范围，域名用 | 或 , 分隔，最多 100 个") String include,
-			@ToolParam(required = false, description = "排除网站范围，域名用 | 或 , 分隔，最多 100 个（仅 type=\"web\" 生效）") String exclude) {
+			@ToolParam(required = false, description = "时效范围：noLimit（默认）/oneDay/oneWeek/oneMonth/oneYear，或 YYYY-MM-DD..YYYY-MM-DD 日期范围") String freshness,
+			@ToolParam(required = false, description = "限定搜索的网站范围：根域名或子域名，多个用 | 或 , 分隔，最多 100 个；web 与 ai 均支持") String include,
+			@ToolParam(required = false, description = "排除搜索的网站范围：根域名或子域名，多个用 | 或 , 分隔，最多 100 个；仅 type=\"web\" 生效") String exclude) {
 		// 工具层消化默认值（#63 决策 9）：count 缺省 20、freshness 缺省 noLimit，再透传能力层
 		int n = count == null ? DEFAULT_COUNT : count;
 		String fresh = (freshness == null || freshness.isBlank()) ? DEFAULT_FRESHNESS : freshness;
